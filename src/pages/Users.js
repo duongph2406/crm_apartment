@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
+import { formatDate } from '../utils/dateFormat';
 
 const Users = () => {
   const { t } = useLanguage();
@@ -13,6 +14,22 @@ const Users = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [viewingUser, setViewingUser] = useState(null);
+
+  // Handle ESC key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        if (viewingUser) {
+          setViewingUser(null);
+        } else if (isModalOpen) {
+          closeModal();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isModalOpen, viewingUser]);
 
   // Mock users data - in real app this would come from backend
   const [users, setUsers] = useState([
@@ -467,7 +484,7 @@ const Users = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary">
                       {userItem.lastLogin 
-                        ? new Date(userItem.lastLogin).toLocaleDateString('vi-VN')
+                        ? formatDate(userItem.lastLogin)
                         : 'Chưa đăng nhập'
                       }
                     </td>
@@ -525,130 +542,145 @@ const Users = () => {
 
       {/* Create/Edit User Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-primary rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-primary">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeModal();
+            }
+          }}
+        >
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div 
+              className="bg-primary rounded-xl shadow-xl w-[90%] max-w-2xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="p-6 border-b border-primary flex-shrink-0">
               <h3 className="text-lg font-semibold text-primary">
                 {editingUser ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản mới'}
               </h3>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Tên đăng nhập
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
-                    className="input w-full"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Họ và tên
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="input w-full"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="input w-full"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    {editingUser ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu'}
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="input w-full"
-                    required={!editingUser}
-                    minLength="6"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Vai trò
-                  </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="input w-full"
-                  >
-                    <option value="user">Khách thuê</option>
-                    {/* Manager can only create/edit users, Admin can create all roles */}
-                    {user.role === 'admin' && (
-                      <>
-                        <option value="manager">Quản lý</option>
-                        <option value="admin">Quản trị viên</option>
-                      </>
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Tên đăng nhập
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.username}
+                      onChange={(e) => setFormData({...formData, username: e.target.value})}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Họ và tên
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      className="input w-full"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      {editingUser ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu'}
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      className="input w-full"
+                      required={!editingUser}
+                      minLength="6"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Vai trò
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({...formData, role: e.target.value})}
+                      className="input w-full"
+                    >
+                      <option value="user">Khách thuê</option>
+                      {/* Manager can only create/edit users, Admin can create all roles */}
+                      {user.role === 'admin' && (
+                        <>
+                          <option value="manager">Quản lý</option>
+                          <option value="admin">Quản trị viên</option>
+                        </>
+                      )}
+                    </select>
+                    {user.role === 'manager' && (
+                      <p className="text-xs text-secondary mt-1">
+                        * Bạn chỉ có thể tạo tài khoản khách thuê
+                      </p>
                     )}
-                  </select>
-                  {user.role === 'manager' && (
-                    <p className="text-xs text-secondary mt-1">
-                      * Bạn chỉ có thể tạo tài khoản khách thuê
-                    </p>
-                  )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Trạng thái
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      className="input w-full"
+                    >
+                      <option value="active">Hoạt động</option>
+                      <option value="inactive">Bị khóa</option>
+                    </select>
+                  </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Trạng thái
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                    className="input w-full"
-                  >
-                    <option value="active">Hoạt động</option>
-                    <option value="inactive">Bị khóa</option>
-                  </select>
-                </div>
+                {formData.role === 'user' && (
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Liên kết với khách thuê (tùy chọn)
+                    </label>
+                    <select
+                      value={formData.tenantId}
+                      onChange={(e) => setFormData({...formData, tenantId: e.target.value})}
+                      className="input w-full"
+                    >
+                      <option value="">Không liên kết</option>
+                      {data.tenants.map(tenant => (
+                        <option key={tenant.id} value={tenant.id}>
+                          {tenant.fullName} - {tenant.phone}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
-              
-              {formData.role === 'user' && (
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Liên kết với khách thuê (tùy chọn)
-                  </label>
-                  <select
-                    value={formData.tenantId}
-                    onChange={(e) => setFormData({...formData, tenantId: e.target.value})}
-                    className="input w-full"
-                  >
-                    <option value="">Không liên kết</option>
-                    {data.tenants.map(tenant => (
-                      <option key={tenant.id} value={tenant.id}>
-                        {tenant.fullName} - {tenant.phone}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              <div className="flex justify-end space-x-3 pt-4 border-t border-primary">
+            </form>
+            
+            <div className="p-6 border-t border-primary flex-shrink-0">
+              <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={closeModal}
@@ -658,27 +690,40 @@ const Users = () => {
                 </button>
                 <button
                   type="submit"
+                  onClick={handleSubmit}
                   className="btn btn-primary"
                 >
                   {editingUser ? 'Cập nhật' : 'Tạo tài khoản'}
                 </button>
               </div>
-            </form>
+            </div>
+          </div>
           </div>
         </div>
       )}
 
       {/* View User Modal */}
       {viewingUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-primary rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-primary">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setViewingUser(null);
+            }
+          }}
+        >
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div 
+              className="bg-primary rounded-xl shadow-xl w-[90%] max-w-2xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="p-6 border-b border-primary flex-shrink-0">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-primary">
                   Chi tiết tài khoản
                 </h3>
                 <button
-                  onClick={closeModal}
+                  onClick={() => setViewingUser(null)}
                   className="text-secondary hover:text-primary"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -688,125 +733,130 @@ const Users = () => {
               </div>
             </div>
             
-            <div className="p-6 space-y-6">
-              {(() => {
-                const tenant = viewingUser.tenantId ? data.tenants.find(t => t.id === viewingUser.tenantId) : null;
-                
-                return (
-                  <>
-                    {/* User Avatar */}
-                    <div className="text-center">
-                      <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                        {viewingUser.name.charAt(0).toUpperCase()}
-                      </div>
-                      <h2 className="text-xl font-bold text-primary">{viewingUser.name}</h2>
-                      <p className="text-secondary">@{viewingUser.username}</p>
-                    </div>
-                    
-                    {/* Basic Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Thông tin cơ bản</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">ID:</span> {viewingUser.id}</p>
-                          <p><span className="font-medium">Email:</span> {viewingUser.email}</p>
-                          <p><span className="font-medium">Vai trò:</span> 
-                            <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              viewingUser.role === 'admin' ? 'badge-purple' :
-                              viewingUser.role === 'manager' ? 'badge-primary' : 'badge-success'
-                            }`}>
-                              {viewingUser.role === 'admin' ? 'Quản trị viên' :
-                               viewingUser.role === 'manager' ? 'Quản lý' : 'Khách thuê'}
-                            </span>
-                          </p>
-                          <p><span className="font-medium">Trạng thái:</span> 
-                            <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              viewingUser.status === 'active' ? 'badge-success' : 'badge-danger'
-                            }`}>
-                              {viewingUser.status === 'active' ? 'Hoạt động' : 'Bị khóa'}
-                            </span>
-                          </p>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {(() => {
+                  const tenant = viewingUser.tenantId ? data.tenants.find(t => t.id === viewingUser.tenantId) : null;
+                  
+                  return (
+                    <>
+                      {/* User Avatar */}
+                      <div className="text-center">
+                        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+                          {viewingUser.name.charAt(0).toUpperCase()}
                         </div>
+                        <h2 className="text-xl font-bold text-primary">{viewingUser.name}</h2>
+                        <p className="text-secondary">@{viewingUser.username}</p>
                       </div>
                       
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Hoạt động</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">Ngày tạo:</span> {new Date(viewingUser.createdAt).toLocaleDateString('vi-VN')}</p>
-                          <p><span className="font-medium">Đăng nhập cuối:</span> {
-                            viewingUser.lastLogin 
-                              ? new Date(viewingUser.lastLogin).toLocaleString('vi-VN')
-                              : 'Chưa đăng nhập'
-                          }</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Tenant Info */}
-                    {tenant && (
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Thông tin khách thuê liên kết</h4>
-                        <div className="bg-secondary rounded-lg p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <p><span className="font-medium">Họ tên:</span> {tenant.fullName}</p>
-                            <p><span className="font-medium">Điện thoại:</span> {tenant.phone}</p>
-                            <p><span className="font-medium">CCCD:</span> {tenant.idNumber}</p>
+                      {/* Basic Info */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="text-sm font-medium text-secondary mb-3">Thông tin cơ bản</h4>
+                          <div className="space-y-2">
+                            <p><span className="font-medium">ID:</span> {viewingUser.id}</p>
+                            <p><span className="font-medium">Email:</span> {viewingUser.email}</p>
                             <p><span className="font-medium">Vai trò:</span> 
                               <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                tenant.role === 'contract_signer' ? 'badge-purple' :
-                                tenant.role === 'room_leader' ? 'badge-primary' : 'badge-success'
+                                viewingUser.role === 'admin' ? 'badge-purple' :
+                                viewingUser.role === 'manager' ? 'badge-primary' : 'badge-success'
                               }`}>
-                                {tenant.role === 'contract_signer' ? 'Người ký hợp đồng' :
-                                 tenant.role === 'room_leader' ? 'Trưởng phòng' : 'Thành viên'}
+                                {viewingUser.role === 'admin' ? 'Quản trị viên' :
+                                 viewingUser.role === 'manager' ? 'Quản lý' : 'Khách thuê'}
+                              </span>
+                            </p>
+                            <p><span className="font-medium">Trạng thái:</span> 
+                              <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                viewingUser.status === 'active' ? 'badge-success' : 'badge-danger'
+                              }`}>
+                                {viewingUser.status === 'active' ? 'Hoạt động' : 'Bị khóa'}
                               </span>
                             </p>
                           </div>
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* Permissions */}
-                    <div>
-                      <h4 className="text-sm font-medium text-secondary mb-3">Quyền hạn</h4>
-                      <div className="bg-secondary rounded-lg p-4">
-                        <div className="flex flex-wrap gap-2">
-                          {viewingUser.permissions.map((permission, index) => (
-                            <span key={index} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                              {permission === 'all' ? 'Toàn quyền' :
-                               permission === 'apartments' ? 'Quản lý căn hộ' :
-                               permission === 'tenants' ? 'Quản lý khách thuê' :
-                               permission === 'contracts' ? 'Quản lý hợp đồng' :
-                               permission === 'invoices' ? 'Quản lý hóa đơn' :
-                               permission === 'my-contracts' ? 'Hợp đồng của tôi' :
-                               permission === 'my-invoices' ? 'Hóa đơn của tôi' :
-                               permission}
-                            </span>
-                          ))}
+                        
+                        <div>
+                          <h4 className="text-sm font-medium text-secondary mb-3">Hoạt động</h4>
+                          <div className="space-y-2">
+                            <p><span className="font-medium">Ngày tạo:</span> {formatDate(viewingUser.createdAt)}</p>
+                            <p><span className="font-medium">Đăng nhập cuối:</span> {
+                              viewingUser.lastLogin 
+                                ? new Date(viewingUser.lastLogin).toLocaleString('vi-VN')
+                                : 'Chưa đăng nhập'
+                            }</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex justify-end space-x-3 pt-4 border-t border-primary">
-                      <button
-                        onClick={() => {
-                          setViewingUser(null);
-                          openModal(viewingUser);
-                        }}
-                        className="btn btn-primary"
-                      >
-                        Chỉnh sửa
-                      </button>
-                      <button
-                        onClick={closeModal}
-                        className="btn btn-secondary"
-                      >
-                        Đóng
-                      </button>
-                    </div>
-                  </>
-                );
-              })()}
+                      
+                      {/* Tenant Info */}
+                      {tenant && (
+                        <div>
+                          <h4 className="text-sm font-medium text-secondary mb-3">Thông tin khách thuê liên kết</h4>
+                          <div className="bg-secondary rounded-lg p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <p><span className="font-medium">Họ tên:</span> {tenant.fullName}</p>
+                              <p><span className="font-medium">Điện thoại:</span> {tenant.phone}</p>
+                              <p><span className="font-medium">CCCD:</span> {tenant.idNumber}</p>
+                              <p><span className="font-medium">Vai trò:</span> 
+                                <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  tenant.role === 'contract_signer' ? 'badge-purple' :
+                                  tenant.role === 'room_leader' ? 'badge-primary' : 'badge-success'
+                                }`}>
+                                  {tenant.role === 'contract_signer' ? 'Người ký hợp đồng (Không ở trọ)' :
+                                   tenant.role === 'room_leader' ? 'Trưởng phòng (Ký HĐ + Ở trọ)' : 'Thành viên (Ở trọ)'}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Permissions */}
+                      <div>
+                        <h4 className="text-sm font-medium text-secondary mb-3">Quyền hạn</h4>
+                        <div className="bg-secondary rounded-lg p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {viewingUser.permissions.map((permission, index) => (
+                              <span key={index} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {permission === 'all' ? 'Toàn quyền' :
+                                 permission === 'apartments' ? 'Quản lý căn hộ' :
+                                 permission === 'tenants' ? 'Quản lý khách thuê' :
+                                 permission === 'contracts' ? 'Quản lý hợp đồng' :
+                                 permission === 'invoices' ? 'Quản lý hóa đơn' :
+                                 permission === 'my-contracts' ? 'Hợp đồng của tôi' :
+                                 permission === 'my-invoices' ? 'Hóa đơn của tôi' :
+                                 permission}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
+            
+            <div className="p-6 border-t border-primary flex-shrink-0">
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setViewingUser(null);
+                    openModal(viewingUser);
+                  }}
+                  className="btn btn-primary"
+                >
+                  Chỉnh sửa
+                </button>
+                <button
+                  onClick={() => setViewingUser(null)}
+                  className="btn btn-secondary"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
           </div>
         </div>
       )}

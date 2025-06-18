@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import { formatDate } from '../utils/dateFormat';
 
 const MyContracts = () => {
   const { t } = useLanguage();
@@ -136,14 +137,14 @@ const MyContracts = () => {
                         <div>
                           <p className="text-sm font-medium text-gray-500">Ngày bắt đầu</p>
                           <p className="text-sm text-gray-900">
-                            {new Date(contract.startDate).toLocaleDateString('vi-VN')}
+                            {formatDate(contract.startDate)}
                           </p>
                         </div>
 
                         <div>
                           <p className="text-sm font-medium text-gray-500">Ngày kết thúc</p>
                           <p className="text-sm text-gray-900">
-                            {new Date(contract.endDate).toLocaleDateString('vi-VN')}
+                            {formatDate(contract.endDate)}
                           </p>
                         </div>
                       </div>

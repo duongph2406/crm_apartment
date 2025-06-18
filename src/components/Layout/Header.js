@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useApp } from '../../contexts/AppContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const Header = ({ currentPage, setCurrentPage }) => {
   const { language, changeLanguage, t } = useLanguage();
   const { currentUser, logout } = useApp();
+  const { theme, changeTheme, isDark } = useTheme();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const navigation = [
@@ -41,14 +43,20 @@ const Header = ({ currentPage, setCurrentPage }) => {
     setIsUserMenuOpen(false);
   };
 
+  const cycleTheme = () => {
+    if (theme === 'light') changeTheme('dark');
+    else if (theme === 'dark') changeTheme('system');
+    else changeTheme('light');
+  };
+
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
+    <header className="bg-primary shadow-sm border-b border-primary">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo and Navigation */}
           <div className="flex items-center space-x-8">
             <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-primary-600">
+              <h1 className="text-xl font-bold text-primary">
                 Apartment CRM
               </h1>
             </div>
@@ -60,8 +68,8 @@ const Header = ({ currentPage, setCurrentPage }) => {
                   onClick={() => setCurrentPage(item.key)}
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     currentPage === item.key
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                      : 'text-secondary hover:text-primary hover-bg-secondary'
                   }`}
                 >
                   {item.label}
@@ -70,67 +78,64 @@ const Header = ({ currentPage, setCurrentPage }) => {
             </nav>
           </div>
 
-          {/* Language switcher and User menu */}
-          <div className="flex items-center space-x-4">
-            {/* Language Switcher */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => changeLanguage('vi')}
-                className={`px-2 py-1 text-sm rounded ${
-                  language === 'vi'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                VI
-              </button>
-              <button
-                onClick={() => changeLanguage('en')}
-                className={`px-2 py-1 text-sm rounded ${
-                  language === 'en'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                EN
-              </button>
-            </div>
+          {/* Theme, Language switcher and User menu */}
+          <div className="flex items-center space-x-3">
+            {/* Theme Selector */}
+            <select
+              value={theme}
+              onChange={(e) => changeTheme(e.target.value)}
+              className="px-3 py-1.5 rounded-lg bg-secondary text-primary text-sm border border-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="light">☀️ Sáng</option>
+              <option value="dark">🌙 Tối</option>
+              <option value="system">💻 Hệ thống</option>
+            </select>
+
+            {/* Language Selector */}
+            <select
+              value={language}
+              onChange={(e) => changeLanguage(e.target.value)}
+              className="px-3 py-1.5 rounded-lg bg-secondary text-primary text-sm border border-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="vi">🇻🇳 VI</option>
+              <option value="en">🇺🇸 EN</option>
+            </select>
 
             {/* User Menu */}
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900"
+                className="flex items-center space-x-2 text-primary hover-bg-secondary rounded-lg px-3 py-2 transition-colors"
               >
-                <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm">
-                  {currentUser?.fullName?.charAt(0) || 'U'}
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  {currentUser?.fullName?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
-                <span className="hidden sm:block">{currentUser?.fullName}</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="hidden sm:block text-sm font-medium">{currentUser?.fullName}</span>
+                <svg className={`w-4 h-4 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                  <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                    {currentUser?.fullName}
-                    <div className="text-xs text-gray-500">{currentUser?.role}</div>
+                <div className="absolute right-0 mt-2 w-48 bg-primary rounded-lg shadow-lg py-1 z-50 border border-primary">
+                  <div className="px-4 py-2 text-sm text-primary border-b border-primary">
+                    <div className="font-medium">{currentUser?.fullName}</div>
+                    <div className="text-xs text-secondary capitalize">{currentUser?.role}</div>
                   </div>
                   <button
                     onClick={() => {
                       setCurrentPage('account');
                       setIsUserMenuOpen(false);
                     }}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="block w-full text-left px-4 py-2 text-sm text-primary hover-bg-secondary transition-colors"
                   >
                     {t('account')}
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="block w-full text-left px-4 py-2 text-sm text-primary hover-bg-secondary transition-colors"
                   >
-                    Đăng xuất / Logout
+                    {language === 'vi' ? 'Đăng xuất' : 'Logout'}
                   </button>
                 </div>
               )}
@@ -141,15 +146,15 @@ const Header = ({ currentPage, setCurrentPage }) => {
 
       {/* Mobile Navigation */}
       <div className="md:hidden">
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
+        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-primary">
           {navigation.map((item) => (
             <button
               key={item.key}
               onClick={() => setCurrentPage(item.key)}
-              className={`block w-full text-left px-3 py-2 rounded-md text-sm font-medium ${
+              className={`block w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 currentPage === item.key
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                  : 'text-secondary hover:text-primary hover-bg-secondary'
               }`}
             >
               {item.label}

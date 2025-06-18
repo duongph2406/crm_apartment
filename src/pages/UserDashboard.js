@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import { formatDate } from '../utils/dateFormat';
 
 const UserDashboard = () => {
   const { t } = useLanguage();
@@ -104,11 +105,11 @@ const UserDashboard = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Bắt đầu:</span>
-                  <span>{new Date(activeContract.startDate).toLocaleDateString('vi-VN')}</span>
+                                        <span>{formatDate(activeContract.startDate)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Kết thúc:</span>
-                  <span>{new Date(activeContract.endDate).toLocaleDateString('vi-VN')}</span>
+                                        <span>{formatDate(activeContract.endDate)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Trạng thái:</span>
@@ -211,7 +212,7 @@ const UserDashboard = () => {
                 <div>
                   <p className="font-semibold text-gray-900">{invoice.invoiceNumber}</p>
                   <p className="text-sm text-gray-600">
-                    Hạn thanh toán: {new Date(invoice.dueDate).toLocaleDateString('vi-VN')}
+                    Hạn thanh toán: {formatDate(invoice.dueDate)}
                   </p>
                 </div>
                 <div className="text-right">

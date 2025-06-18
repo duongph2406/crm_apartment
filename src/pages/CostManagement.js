@@ -7,58 +7,60 @@ const CostManagement = () => {
   const { data, updateCostSettings, updateRoomPrice, getRoomPrice } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('general'); // general, room-prices
-  const [editingRoomPrices, setEditingRoomPrices] = useState({});
   const [costData, setCostData] = useState(
     data.costSettings || {
-      electricityRate: 3500, // VNĐ/kWh
-      waterRatePerPerson: 50000, // VNĐ/người/tháng
-      internetRatePerRoom: 200000, // VNĐ/phòng/tháng
-      serviceFeePerPerson: 30000, // VNĐ/người/tháng
+      electricityRate: 4000, // VNĐ/kWh
+      waterRatePerPerson: 100000, // VNĐ/người/tháng
+      internetRatePerRoom: 100000, // VNĐ/phòng/tháng
+      serviceFeePerPerson: 100000, // VNĐ/người/tháng
       lastUpdated: new Date().toISOString()
     }
   );
 
+  // Room prices state
+  const [roomPricesData, setRoomPricesData] = useState({});
+
   const handleSave = () => {
-    const updatedData = {
-      ...costData,
-      lastUpdated: new Date().toISOString()
-    };
-    setCostData(updatedData);
-    if (updateCostSettings) {
-      updateCostSettings(updatedData);
+    if (activeTab === 'general') {
+      // Save cost settings
+      const updatedData = {
+        ...costData,
+        lastUpdated: new Date().toISOString()
+      };
+      setCostData(updatedData);
+      if (updateCostSettings) {
+        updateCostSettings(updatedData);
+      }
+    } else if (activeTab === 'room-prices') {
+      // Save room prices
+      Object.entries(roomPricesData).forEach(([apartmentId, price]) => {
+        if (price !== undefined && price !== '') {
+          updateRoomPrice(apartmentId, parseInt(price));
+        }
+      });
+      setRoomPricesData({});
     }
     setIsEditing(false);
   };
 
   const handleCancel = () => {
-    setCostData(data.costSettings || {
-      electricityRate: 3500,
-      waterRatePerPerson: 50000,
-      internetRatePerRoom: 200000,
-      serviceFeePerPerson: 30000,
-      lastUpdated: new Date().toISOString()
-    });
+    if (activeTab === 'general') {
+      setCostData(data.costSettings || {
+        electricityRate: 4000,
+        waterRatePerPerson: 100000,
+        internetRatePerRoom: 100000,
+        serviceFeePerPerson: 100000,
+        lastUpdated: new Date().toISOString()
+      });
+    } else if (activeTab === 'room-prices') {
+      setRoomPricesData({});
+    }
     setIsEditing(false);
-    setEditingRoomPrices({});
-  };
-
-  // Room price management
-  const handleSaveRoomPrices = () => {
-    Object.entries(editingRoomPrices).forEach(([apartmentId, price]) => {
-      if (price !== undefined && price !== '') {
-        updateRoomPrice(parseInt(apartmentId), parseInt(price));
-      }
-    });
-    setEditingRoomPrices({});
-  };
-
-  const handleCancelRoomPrices = () => {
-    setEditingRoomPrices({});
   };
 
   const getRoomPriceForEdit = (apartmentId) => {
-    return editingRoomPrices[apartmentId] !== undefined 
-      ? editingRoomPrices[apartmentId] 
+    return roomPricesData[apartmentId] !== undefined 
+      ? roomPricesData[apartmentId] 
       : getRoomPrice(apartmentId);
   };
 
@@ -380,30 +382,24 @@ const CostManagement = () => {
                   Thiết lập giá thuê riêng cho từng phòng. Nếu không thiết lập sẽ dùng giá mặc định.
                 </p>
               </div>
-              {Object.keys(editingRoomPrices).length > 0 ? (
-                <div className="flex space-x-3">
-                  <button 
-                    onClick={handleCancelRoomPrices}
-                    className="btn btn-secondary"
-                  >
-                    Hủy
-                  </button>
-                  <button 
-                    onClick={handleSaveRoomPrices}
-                    className="btn btn-primary"
-                  >
-                    Lưu thay đổi
-                  </button>
-                </div>
-              ) : (
+              {isEditing && (
                 <button 
-                  onClick={() => setEditingRoomPrices({})}
-                  className="btn btn-primary flex items-center space-x-2"
+                  onClick={() => {
+                    const price = prompt('Nhập giá thuê cho tất cả phòng (VNĐ):', '6000000');
+                    if (price && !isNaN(price)) {
+                      const newPrices = {};
+                      data.apartments.forEach(apt => {
+                        newPrices[apt.id] = parseInt(price);
+                      });
+                      setRoomPricesData(newPrices);
+                    }
+                  }}
+                  className="btn btn-secondary flex items-center space-x-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
-                  <span>Chỉnh sửa giá</span>
+                  <span>Set giá tất cả</span>
                 </button>
               )}
             </div>
@@ -415,7 +411,6 @@ const CostManagement = () => {
               const customPrice = getRoomPrice(apartment.id);
               const defaultPrice = apartment.rent || 0;
               const isCustom = data.roomPrices[apartment.id] !== undefined;
-              const isEditing = Object.keys(editingRoomPrices).length > 0;
               
               return (
                 <div key={apartment.id} className="bg-primary rounded-xl shadow border overflow-hidden">
@@ -474,8 +469,8 @@ const CostManagement = () => {
                           <input
                             type="number"
                             value={getRoomPriceForEdit(apartment.id)}
-                            onChange={(e) => setEditingRoomPrices({
-                              ...editingRoomPrices,
+                            onChange={(e) => setRoomPricesData({
+                              ...roomPricesData,
                               [apartment.id]: e.target.value
                             })}
                             className="input w-full"

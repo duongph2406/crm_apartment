@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import Modal from '../components/Modal';
 
 const Apartments = () => {
   const { t } = useLanguage();
@@ -18,10 +19,26 @@ const Apartments = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [filter, setFilter] = useState('all');
+
+  // Handle ESC key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        if (isConfirmModalOpen) {
+          setIsConfirmModalOpen(false);
+        } else if (isEditModalOpen) {
+          setIsEditModalOpen(false);
+          setSelectedApartment(null);
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isEditModalOpen, isConfirmModalOpen]);
   const [formData, setFormData] = useState({
     roomNumber: '',
     size: '',
-    rentPrice: '',
     description: '',
     status: '',
   });
@@ -91,7 +108,6 @@ const Apartments = () => {
     setFormData({
       roomNumber: apartment.roomNumber,
       size: apartment.size,
-      rentPrice: apartment.rentPrice,
       description: apartment.description,
       status: apartment.status,
     });
@@ -107,7 +123,7 @@ const Apartments = () => {
   ];
 
   const EditApartmentModal = () => {
-    if (!isEditModalOpen || !selectedApartment) return null;
+    if (!selectedApartment) return null;
 
     const handleSave = () => {
       // Check if changing to available and apartment has tenants
@@ -122,105 +138,16 @@ const Apartments = () => {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-semibold text-gray-900">
-              Chỉnh sửa phòng {selectedApartment.roomNumber}
-            </h3>
-            <button
-              onClick={() => {
-                setIsEditModalOpen(false);
-                setSelectedApartment(null);
-              }}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Số phòng
-              </label>
-              <input
-                type="text"
-                value={formData.roomNumber}
-                onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
-                className="input"
-                placeholder="102"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Diện tích (m²)
-              </label>
-              <input
-                type="number"
-                value={formData.size}
-                onChange={(e) => setFormData({ ...formData, size: parseFloat(e.target.value) })}
-                className="input"
-                placeholder="25"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Giá thuê (VNĐ/tháng)
-              </label>
-              <input
-                type="number"
-                value={formData.rentPrice}
-                onChange={(e) => setFormData({ ...formData, rentPrice: parseFloat(e.target.value) })}
-                className="input"
-                placeholder="5000000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mô tả
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="input"
-                rows="3"
-                placeholder="Mô tả về phòng..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Trạng thái
-              </label>
-              <div className="space-y-2">
-                {statusConfig.map(([status, config]) => (
-                  <label key={status} className="flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="status"
-                      value={status}
-                      checked={formData.status === status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="mr-3"
-                    />
-                    <span className="text-2xl mr-3">{config.icon}</span>
-                    <div>
-                      <p className="font-medium text-gray-900">{config.label}</p>
-                      <p className="text-sm text-gray-500">{config.description}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex space-x-3 mt-6">
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedApartment(null);
+        }}
+        title={`Chỉnh sửa phòng ${selectedApartment.roomNumber}`}
+        size="lg"
+        footer={
+          <div className="flex space-x-3">
             <button
               onClick={() => {
                 setIsEditModalOpen(false);
@@ -237,13 +164,79 @@ const Apartments = () => {
               Lưu thay đổi
             </button>
           </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Số phòng
+            </label>
+            <input
+              type="text"
+              value={formData.roomNumber}
+              onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+              className="input"
+              placeholder="102"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Diện tích (m²)
+            </label>
+            <input
+              type="number"
+              value={formData.size}
+              onChange={(e) => setFormData({ ...formData, size: parseFloat(e.target.value) })}
+              className="input"
+              placeholder="25"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Mô tả
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="input"
+              rows="3"
+              placeholder="Mô tả về phòng..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Trạng thái
+            </label>
+            <div className="space-y-2">
+              {statusConfig.map(([status, config]) => (
+                <label key={status} className="flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="status"
+                    value={status}
+                    checked={formData.status === status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="mr-3"
+                  />
+                  <span className="text-2xl mr-3">{config.icon}</span>
+                  <div>
+                    <p className="font-medium text-gray-900">{config.label}</p>
+                    <p className="text-sm text-gray-500">{config.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      </Modal>
     );
   };
 
   const ConfirmModal = () => {
-    if (!isConfirmModalOpen || !selectedApartment) return null;
+    if (!selectedApartment) return null;
 
     const tenants = getApartmentTenants(selectedApartment.id);
 
@@ -255,8 +248,28 @@ const Apartments = () => {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+      <Modal
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        title="Xác nhận thay đổi trạng thái"
+        size="md"
+        footer={
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setIsConfirmModalOpen(false)}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex-1 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Xác nhận xóa
+            </button>
+          </div>
+        }
+      >
           <div className="text-center">
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
               <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -281,51 +294,35 @@ const Apartments = () => {
               </ul>
             </div>
           </div>
-
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setIsConfirmModalOpen(false)}
-              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Hủy
-            </button>
-            <button
-              onClick={handleConfirm}
-              className="flex-1 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Xác nhận xóa
-            </button>
-          </div>
-        </div>
-      </div>
+      </Modal>
     );
   };
 
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
+      <div className="bg-primary rounded-xl shadow border p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl font-bold text-primary mb-2">
               {t('apartments')}
             </h1>
-            <p className="text-gray-600">
+            <p className="text-secondary">
               Quản lý thông tin và tình trạng 11 căn hộ trong tòa nhà
             </p>
           </div>
           <div className="hidden md:block">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-blue-600">{data.apartments.length}</div>
-              <div className="text-sm text-blue-600">Tổng căn hộ</div>
+            <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-4">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{data.apartments.length}</div>
+              <div className="text-sm text-blue-600 dark:text-blue-300">Tổng căn hộ</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Lọc theo trạng thái</h3>
+      <div className="bg-primary rounded-xl shadow border p-6">
+        <h3 className="text-lg font-semibold text-primary mb-4">Lọc theo trạng thái</h3>
         <div className="flex flex-wrap gap-3">
           {[
             { key: 'all', label: 'Tất cả', count: data.apartments.length, color: 'bg-gray-500' },
@@ -359,8 +356,8 @@ const Apartments = () => {
               onClick={() => setFilter(filterOption.key)}
               className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 filter === filterOption.key
-                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                  : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
+                  : 'bg-secondary text-secondary hover-bg-tertiary border border-primary'
               }`}
             >
               {filter !== filterOption.key && (
@@ -381,17 +378,17 @@ const Apartments = () => {
           const config = getStatusConfig(actualStatus);
 
           return (
-            <div key={apartment.id} className={`bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 border ${config.borderColor} overflow-hidden`}>
+            <div key={apartment.id} className={`bg-primary rounded-xl shadow hover:shadow-lg transition-all duration-300 border ${config.borderColor} overflow-hidden`}>
               {/* Header */}
               <div className={`${config.bgColor} px-6 py-4 border-b ${config.borderColor}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <span className="text-2xl">{config.icon}</span>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">
+                      <h3 className="text-2xl font-bold text-primary">
                         {apartment.roomNumber}
                       </h3>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.textColor} bg-white`}>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.textColor} bg-primary`}>
                         {getStatusText(actualStatus)}
                       </span>
                     </div>
@@ -403,11 +400,11 @@ const Apartments = () => {
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-sm text-gray-500">Diện tích:</span>
+                    <span className="text-sm text-secondary">Diện tích:</span>
                     <span className="ml-2 font-medium">{apartment.size}m²</span>
                   </div>
                   <div>
-                    <span className="text-sm text-gray-500">Giá thuê:</span>
+                    <span className="text-sm text-secondary">Giá thuê:</span>
                     <span className="ml-2 font-medium text-blue-600">
                       {getRoomPrice(apartment.id)?.toLocaleString('vi-VN')} VNĐ/tháng
                     </span>
@@ -436,9 +433,9 @@ const Apartments = () => {
                     
                     {getApartmentTenants(apartment.id).map((tenant) => {
                       const roleConfig = {
-                        contract_signer: { label: 'Người ký HĐ', icon: '📝', color: 'text-purple-600' },
-                        room_leader: { label: 'Trưởng phòng', icon: '👑', color: 'text-blue-600' },
-                        member: { label: 'Thành viên', icon: '👤', color: 'text-green-600' }
+                        contract_signer: { label: 'Người ký HĐ (Không ở)', icon: '📝', color: 'text-purple-600' },
+                        room_leader: { label: 'Trưởng phòng (Ký HĐ + Ở)', icon: '👑', color: 'text-blue-600' },
+                        member: { label: 'Thành viên (Ở)', icon: '👤', color: 'text-green-600' }
                       };
                       const config = roleConfig[tenant.role] || roleConfig.member;
                       

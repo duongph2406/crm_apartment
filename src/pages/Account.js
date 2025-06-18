@@ -3,6 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useApp } from '../contexts/AppContext';
+import { formatDate } from '../utils/dateFormat';
 
 const Account = () => {
   const { t, language, changeLanguage } = useLanguage();
@@ -308,7 +309,7 @@ const Account = () => {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium text-primary">Phiên hiện tại</p>
-                      <p className="text-sm text-secondary">Trình duyệt web - {new Date().toLocaleDateString('vi-VN')}</p>
+                      <p className="text-sm text-secondary">Trình duyệt web - {formatDate(new Date())}</p>
                     </div>
                     <button
                       onClick={logout}
@@ -550,8 +551,8 @@ const Account = () => {
                           tenant.role === 'contract_signer' ? 'badge-purple' :
                           tenant.role === 'room_leader' ? 'badge-primary' : 'badge-success'
                         }`}>
-                          {tenant.role === 'contract_signer' ? 'Người ký hợp đồng' :
-                           tenant.role === 'room_leader' ? 'Trưởng phòng' : 'Thành viên'}
+                          {tenant.role === 'contract_signer' ? 'Người ký hợp đồng (Không ở trọ)' :
+                           tenant.role === 'room_leader' ? 'Trưởng phòng (Ký HĐ + Ở trọ)' : 'Thành viên (Ở trọ)'}
                         </span>
                       </div>
                     </div>
@@ -573,7 +574,7 @@ const Account = () => {
                             <div className="flex justify-between mb-2">
                               <span className="text-secondary">Thời hạn:</span>
                               <span className="text-sm">
-                                {new Date(contract.startDate).toLocaleDateString('vi-VN')} - {new Date(contract.endDate).toLocaleDateString('vi-VN')}
+                                {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
                               </span>
                             </div>
                             <div className="flex justify-between">

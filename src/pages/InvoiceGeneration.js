@@ -36,6 +36,18 @@ const InvoiceGeneration = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  // Handle ESC key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape' && showPreview) {
+        setShowPreview(false);
+      }
+    };
+    
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [showPreview]);
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -810,9 +822,20 @@ const InvoiceGeneration = () => {
 
       {/* Preview Modal */}
       {showPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-primary rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-primary">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPreview(false);
+            }
+          }}
+        >
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div 
+              className="bg-primary rounded-xl shadow-xl w-[90%] max-w-6xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="p-6 border-b border-primary flex-shrink-0">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-primary">
                   Xem trước hóa đơn ({selectedCount} phòng)
@@ -828,7 +851,7 @@ const InvoiceGeneration = () => {
               </div>
             </div>
             
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-6">
               <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                 <h4 className="font-medium text-blue-900 mb-2">Tóm tắt</h4>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
@@ -851,7 +874,7 @@ const InvoiceGeneration = () => {
                 </div>
               </div>
 
-              <div className="space-y-4 max-h-96 overflow-y-auto">
+              <div className="space-y-4">
                 {invoiceData.filter(inv => inv.selected).map((invoice) => (
                   <div key={invoice.apartmentId} className="border border-primary rounded-lg p-4">
                     <div className="flex justify-between items-start mb-3">
@@ -906,8 +929,10 @@ const InvoiceGeneration = () => {
                   </div>
                 ))}
               </div>
+            </div>
 
-              <div className="flex justify-end space-x-3 pt-6 border-t border-primary mt-6">
+            <div className="p-6 border-t border-primary flex-shrink-0">
+              <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowPreview(false)}
                   className="btn btn-secondary"
@@ -923,6 +948,7 @@ const InvoiceGeneration = () => {
                 </button>
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}

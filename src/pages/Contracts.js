@@ -1,20 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import { formatDate } from '../utils/dateFormat';
 
 const Contracts = () => {
   const { t } = useLanguage();
-  const { data, updateContract, addContract, deleteContract, addTenant, assignTenantToApartment, updateRoomPrice } = useApp();
+  const { data, currentUser, updateContract, addContract, deleteContract, addTenant, updateTenant, assignTenantToApartment, updateRoomPrice, getRoomPrice } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewingContract, setViewingContract] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
+  const [editMemberData, setEditMemberData] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    idNumber: '',
+    role: 'member'
+  });
+  
+  // State for renewal modal
+  const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
+  const [renewingContract, setRenewingContract] = useState(null);
+  const [renewalFormData, setRenewalFormData] = useState({
+    endDate: '',
+    monthlyRent: ''
+  });
+  
+  // State for import tenant
+  const [showImportTenant, setShowImportTenant] = useState(false);
+  const [tenantSearchTerm, setTenantSearchTerm] = useState('');
+  
+  // Handle ESC key
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        if (viewingContract) {
+          setViewingContract(null);
+        } else if (isModalOpen) {
+          closeModal();
+        } else if (isRenewalModalOpen) {
+          closeRenewalModal();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isModalOpen, viewingContract, isRenewalModalOpen]);
 
   const [formData, setFormData] = useState({
     contractNumber: '',
     apartmentId: '',
-    tenantId: '',
+    tenantName: '',
+    tenantPhone: '',
+    tenantEmail: '',
+    tenantIdNumber: '',
+    tenantRole: 'room_leader',
     startDate: '',
     endDate: '',
     monthlyRent: '',
@@ -51,16 +94,56 @@ const Contracts = () => {
   const openModal = (contract = null) => {
     if (contract) {
       setEditingContract(contract);
+      
+      // Get existing members from tenants table for this apartment
+      const existingMembers = data.tenants
+        .filter(tenant => tenant.apartmentId === contract.apartmentId && tenant.status === 'active')
+        .map(tenant => ({
+          id: tenant.id,
+          fullName: tenant.fullName,
+          phone: tenant.phone,
+          email: tenant.email || '',
+          idNumber: tenant.idNumber || '',
+          role: tenant.role || 'member',
+          isExistingTenant: true // Flag to identify existing tenants
+        }));
+
+      // Also include any members that might be in the contract but not in tenants table
+      const contractMembers = contract.members || [];
+      const combinedMembers = [...existingMembers];
+      
+      // Add contract members that are not already in existingMembers
+      contractMembers.forEach(contractMember => {
+        if (!existingMembers.find(em => em.id === contractMember.id)) {
+          combinedMembers.push({
+            ...contractMember,
+            isExistingTenant: false
+          });
+        }
+      });
+
+      // Get tenant information
+      const tenant = data.tenants.find(t => t.id === contract.tenantId);
+      
       setFormData({
         ...contract,
-        members: contract.members || []
+        tenantName: tenant?.fullName || '',
+        tenantPhone: tenant?.phone || '',
+        tenantEmail: tenant?.email || '',
+        tenantIdNumber: tenant?.idNumber || '',
+        tenantRole: tenant?.role || 'room_leader',
+        members: combinedMembers
       });
     } else {
       setEditingContract(null);
       setFormData({
         contractNumber: `HD${Date.now()}`,
         apartmentId: '',
-        tenantId: '',
+        tenantName: '',
+        tenantPhone: '',
+        tenantEmail: '',
+        tenantIdNumber: '',
+        tenantRole: 'room_leader',
         startDate: '',
         endDate: '',
         monthlyRent: '',
@@ -80,7 +163,11 @@ const Contracts = () => {
     setFormData({
       contractNumber: '',
       apartmentId: '',
-      tenantId: '',
+      tenantName: '',
+      tenantPhone: '',
+      tenantEmail: '',
+      tenantIdNumber: '',
+      tenantRole: 'room_leader',
       startDate: '',
       endDate: '',
       monthlyRent: '',
@@ -96,10 +183,24 @@ const Contracts = () => {
       idNumber: '',
       role: 'member'
     });
+    // Reset editing member state
+    setEditingMember(null);
+    setEditMemberData({
+      fullName: '',
+      phone: '',
+      email: '',
+      idNumber: '',
+      role: 'member'
+    });
+    // Reset import tenant state
+    setShowImportTenant(false);
+    setTenantSearchTerm('');
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     
     if (editingContract) {
       // Check if monthlyRent has changed
@@ -108,28 +209,90 @@ const Contracts = () => {
         updateRoomPrice(formData.apartmentId, formData.monthlyRent);
       }
       
+      // Create or update tenant
+      const tenantData = {
+        fullName: formData.tenantName,
+        phone: formData.tenantPhone,
+        email: formData.tenantEmail || '',
+        idNumber: formData.tenantIdNumber || '',
+        role: formData.tenantRole,
+        status: 'active'
+      };
+
+      if (editingContract.tenantId) {
+        updateTenant(editingContract.tenantId, tenantData);
+      } else {
+        const newTenant = addTenant(tenantData);
+        formData.tenantId = newTenant.id;
+      }
+      
+      // Add tenant to members list if not already present
+      const tenantMember = {
+        id: editingContract.tenantId || formData.tenantId,
+        fullName: formData.tenantName,
+        phone: formData.tenantPhone,
+        email: formData.tenantEmail || '',
+        idNumber: formData.tenantIdNumber || '',
+        role: formData.tenantRole,
+        isExistingTenant: true
+      };
+
+      const updatedMembers = formData.members.filter(m => m.id !== tenantMember.id);
+      updatedMembers.unshift(tenantMember); // Add tenant at the beginning of the list
+      formData.members = updatedMembers;
+      
       updateContract(editingContract.id, formData);
       
       // Update existing members in tenants if needed
       if (formData.members && formData.members.length > 0) {
         formData.members.forEach(member => {
-          if (member.id) {
-            // Update existing tenant
-            // This would need more logic in a real app
+          if (member.isExistingTenant) {
+            // Update existing tenant role if changed
+            const existingTenant = data.tenants.find(t => t.id === member.id);
+            if (existingTenant && existingTenant.role !== member.role) {
+              updateTenant(member.id, { role: member.role });
+            }
           } else {
-            // Add new member to tenants
+            // Add new member to tenants and assign to apartment
             const newTenant = addTenant({
               ...member,
+              status: 'active',
               apartmentId: formData.apartmentId
             });
+            // Assign to apartment with role
             assignTenantToApartment(newTenant.id, formData.apartmentId, member.role);
           }
         });
       }
     } else {
+      // Create new tenant
+      const newTenant = addTenant({
+        fullName: formData.tenantName,
+        phone: formData.tenantPhone,
+        email: formData.tenantEmail || '',
+        idNumber: formData.tenantIdNumber || '',
+        role: formData.tenantRole,
+        status: 'active'
+      });
+
+      // Add tenant to members list
+      const tenantMember = {
+        id: newTenant.id,
+        fullName: formData.tenantName,
+        phone: formData.tenantPhone,
+        email: formData.tenantEmail || '',
+        idNumber: formData.tenantIdNumber || '',
+        role: formData.tenantRole,
+        isExistingTenant: true
+      };
+
+      const updatedMembers = [tenantMember, ...(formData.members || [])];
+      formData.members = updatedMembers;
+
       const newContract = {
         id: Date.now(),
         ...formData,
+        tenantId: newTenant.id,
         createdAt: new Date().toISOString()
       };
       
@@ -140,14 +303,18 @@ const Contracts = () => {
       
       addContract(newContract);
       
-      // Add all members to tenants
+      // Add all members to tenants and assign to apartment
       if (formData.members && formData.members.length > 0) {
         formData.members.forEach(member => {
-          const newTenant = addTenant({
-            ...member,
-            apartmentId: formData.apartmentId
-          });
-          assignTenantToApartment(newTenant.id, formData.apartmentId, member.role);
+          if (!member.isExistingTenant) {
+            const newTenant = addTenant({
+              ...member,
+              status: 'active',
+              apartmentId: formData.apartmentId
+            });
+            // Assign to apartment with role
+            assignTenantToApartment(newTenant.id, formData.apartmentId, member.role);
+          }
         });
       }
     }
@@ -162,42 +329,23 @@ const Contracts = () => {
       const hasContractSigner = formData.members.some(m => m.role === 'contract_signer');
       const hasRoomLeader = formData.members.some(m => m.role === 'room_leader');
       
-      let memberRole = newMember.role;
+      // New members can only be regular members
+      const memberRole = 'member';
       
-      // If there's already a contract_signer, force all new members to be 'member'
-      if (hasContractSigner && (newMember.role === 'contract_signer' || newMember.role === 'room_leader')) {
-        alert('Đã có người ký hợp đồng trong phòng. Tất cả thành viên mới sẽ là thành viên thường.');
-        memberRole = 'member';
-      }
-      // If there's already a room_leader and trying to add contract_signer
-      else if (hasRoomLeader && newMember.role === 'contract_signer') {
-        // Convert room_leader to member and set new member as contract_signer
-        setFormData({
-          ...formData,
-          members: [
-            ...formData.members.map(m => m.role === 'room_leader' ? {...m, role: 'member'} : m),
-            { ...newMember, id: Date.now(), role: 'contract_signer' }
-          ]
-        });
-        setNewMember({
-          fullName: '',
-          phone: '',
-          email: '',
-          idNumber: '',
-          role: 'member'
-        });
-        return;
-      }
-      // If there's already a room_leader and trying to add another room_leader
-      else if (hasRoomLeader && newMember.role === 'room_leader') {
-        alert('Mỗi phòng chỉ có thể có 1 trưởng phòng.');
-        return;
-      }
+      // Add the new member
+      const newMemberData = {
+        id: Date.now(),
+        ...newMember,
+        role: memberRole,
+        isExistingTenant: false
+      };
       
       setFormData({
         ...formData,
-        members: [...formData.members, { ...newMember, id: Date.now(), role: memberRole }]
+        members: [...formData.members, newMemberData]
       });
+      
+      // Reset new member form
       setNewMember({
         fullName: '',
         phone: '',
@@ -209,19 +357,47 @@ const Contracts = () => {
   };
 
   const removeMember = (memberId) => {
-    setFormData({
-      ...formData,
-      members: formData.members.filter(member => member.id !== memberId)
-    });
-  };
+    const memberToRemove = formData.members.find(m => m.id === memberId);
+    
+    if (memberToRemove && memberToRemove.isExistingTenant) {
+      // For existing tenants, we should deactivate them or remove them from apartment
+      if (window.confirm(`Bạn có chắc chắn muốn xóa ${memberToRemove.fullName} khỏi phòng?\n\nThành viên này sẽ:\n- Được chuyển về trạng thái "Không hoạt động"\n- Không còn thuộc phòng nào\n- Có thể được kích hoạt lại từ mục Quản lý khách thuê`)) {
+          updateTenant(memberId, { status: 'inactive', apartmentId: null, role: 'member' });
+          setFormData({
+            ...formData,
+            members: formData.members.filter(member => member.id !== memberId)
+          });
+        }
+      } else {
+        // For new members that haven't been saved yet, just remove from the list
+        if (window.confirm(`Bạn có chắc chắn muốn xóa ${memberToRemove.fullName} khỏi danh sách thành viên?`)) {
+          setFormData({
+            ...formData,
+            members: formData.members.filter(member => member.id !== memberId)
+          });
+        }
+      }
+    };
 
   const updateMemberRole = (memberId, newRole) => {
     const hasContractSigner = formData.members.some(m => m.role === 'contract_signer' && m.id !== memberId);
     const hasRoomLeader = formData.members.some(m => m.role === 'room_leader' && m.id !== memberId);
     
-    // If there's already a contract_signer, don't allow changing to contract_signer or room_leader
-    if (hasContractSigner && (newRole === 'contract_signer' || newRole === 'room_leader')) {
-      alert('Đã có người ký hợp đồng trong phòng. Tất cả thành viên khác phải là thành viên thường.');
+    // If trying to change to contract_signer when there's already a room_leader
+    if (hasRoomLeader && newRole === 'contract_signer') {
+      alert('Phòng đã có trưởng phòng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
+      return;
+    }
+    
+    // If trying to change to room_leader when there's already a contract_signer  
+    if (hasContractSigner && newRole === 'room_leader') {
+      alert('Phòng đã có người ký hợp đồng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
+      return;
+    }
+    
+    // If there's already a contract_signer and trying to change to contract_signer
+    if (hasContractSigner && newRole === 'contract_signer') {
+      alert('Mỗi phòng chỉ có thể có 1 người ký hợp đồng.');
       return;
     }
     
@@ -231,20 +407,9 @@ const Contracts = () => {
       return;
     }
     
-    // If changing to contract_signer, convert existing room_leader to member
-    if (newRole === 'contract_signer') {
-      setFormData({
-        ...formData,
-        members: formData.members.map(member => {
-          if (member.id === memberId) {
-            return { ...member, role: newRole };
-          }
-          if (member.role === 'room_leader') {
-            return { ...member, role: 'member' };
-          }
-          return member;
-        })
-      });
+    // If there's already a contract_signer, don't allow changing to other roles except member
+    if (hasContractSigner && newRole !== 'member' && newRole !== 'contract_signer') {
+      alert('Đã có người ký hợp đồng trong phòng. Tất cả thành viên khác phải là thành viên thường.');
       return;
     }
     
@@ -256,24 +421,136 @@ const Contracts = () => {
     });
   };
 
+  // Function to start editing a member
+  const startEditMember = (member) => {
+    setEditingMember(member.id);
+    setEditMemberData({
+      fullName: member.fullName,
+      phone: member.phone,
+      email: member.email || '',
+      idNumber: member.idNumber || '',
+      role: member.role
+    });
+  };
+
+  // Function to save member changes
+  const saveMemberChanges = () => {
+    if (!editMemberData.fullName || !editMemberData.phone) {
+      alert('Vui lòng nhập đầy đủ họ tên và số điện thoại!');
+      return;
+    }
+
+    // Validate role change (same logic as updateMemberRole)
+    const hasContractSigner = formData.members.some(m => m.role === 'contract_signer' && m.id !== editingMember);
+    const hasRoomLeader = formData.members.some(m => m.role === 'room_leader' && m.id !== editingMember);
+    
+    if (hasRoomLeader && editMemberData.role === 'contract_signer') {
+      alert('Phòng đã có trưởng phòng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
+      return;
+    }
+    
+    if (hasContractSigner && editMemberData.role === 'room_leader') {
+      alert('Phòng đã có người ký hợp đồng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
+      return;
+    }
+    
+    if (hasContractSigner && editMemberData.role === 'contract_signer') {
+      alert('Mỗi phòng chỉ có thể có 1 người ký hợp đồng.');
+      return;
+    }
+    
+    if (hasRoomLeader && editMemberData.role === 'room_leader') {
+      alert('Mỗi phòng chỉ có thể có 1 trưởng phòng.');
+      return;
+    }
+
+    if (hasContractSigner && editMemberData.role !== 'member' && editMemberData.role !== 'contract_signer') {
+      alert('Đã có người ký hợp đồng trong phòng. Tất cả thành viên khác phải là thành viên thường.');
+      return;
+    }
+
+    // Update member in formData
+    setFormData(prev => ({
+      ...prev,
+      members: prev.members.map(member => 
+        member.id === editingMember 
+          ? { ...member, ...editMemberData }
+          : member
+      )
+    }));
+
+    // If this is an existing tenant (has isExistingTenant flag), also update in tenants table
+    const member = formData.members.find(m => m.id === editingMember);
+    if (member && member.isExistingTenant) {
+      updateTenant(editingMember, {
+        ...editMemberData,
+        apartmentId: formData.apartmentId,
+        status: 'active'
+      });
+      // Also update role assignment
+      assignTenantToApartment(editingMember, formData.apartmentId, editMemberData.role);
+    }
+
+    // Reset editing state
+    setEditingMember(null);
+    setEditMemberData({
+      fullName: '',
+      phone: '',
+      email: '',
+      idNumber: '',
+      role: 'member'
+    });
+  };
+
+  // Function to cancel editing
+  const cancelEditMember = () => {
+    setEditingMember(null);
+    setEditMemberData({
+      fullName: '',
+      phone: '',
+      email: '',
+      idNumber: '',
+      role: 'member'
+    });
+  };
+
   const handleDeactivate = (contract) => {
     if (window.confirm('Bạn có chắc chắn muốn thanh lý hợp đồng này? Hợp đồng sẽ chuyển sang trạng thái không hoạt động.')) {
-      updateContract(contract.id, { status: 'deactive' });
+      updateContract(contract.id, { status: 'inactive' });
+    }
+  };
+
+  const handleDeleteContract = (contract) => {
+    if (currentUser?.role !== 'admin') {
+      alert('Chỉ admin mới có quyền xóa hợp đồng.');
+      return;
+    }
+    
+    if (window.confirm('Bạn có chắc chắn muốn XÓA VĨNH VIỄN hợp đồng này? Hành động này không thể hoàn tác.')) {
+      deleteContract(contract.id);
     }
   };
 
   // Get available apartments (empty ones)
-  const availableApartments = data.apartments.filter(apt => 
-    apt.status === 'available' || 
-    (editingContract && apt.id === editingContract.apartmentId)
-  );
+  const availableApartments = data.apartments.filter(apt => {
+    // Check if the apartment has any active contracts
+    const hasActiveContract = data.contracts.some(contract => 
+      contract.apartmentId === apt.id && contract.status === 'active'
+    );
+    
+    // Show apartment if:
+    // 1. It's being edited (for existing contracts)
+    // 2. It's available and has no active contracts (for new contracts)
+    return (editingContract && apt.id === editingContract.apartmentId) || 
+           (!hasActiveContract && apt.status === 'available');
+  });
 
   // Get contract stats
   const contractStats = {
     total: data.contracts.length,
     active: data.contracts.filter(c => c.status === 'active').length,
     expired: data.contracts.filter(c => c.status === 'expired').length,
-    deactive: data.contracts.filter(c => c.status === 'deactive').length,
+    inactive: data.contracts.filter(c => c.status === 'inactive').length,
     expiringSoon: data.contracts.filter(c => {
       if (c.status !== 'active') return false;
       const endDate = new Date(c.endDate);
@@ -282,6 +559,220 @@ const Contracts = () => {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return diffDays <= 30 && diffDays > 0;
     }).length
+  };
+
+  // Update the view modal to show tenant information without room assignment
+  const renderViewModal = () => {
+    if (!viewingContract) return null;
+    
+    const apartment = data.apartments.find(apt => apt.id === viewingContract.apartmentId);
+    const tenant = data.tenants.find(t => t.id === viewingContract.tenantId);
+    // Get all active tenants in this apartment
+    const apartmentMembers = data.tenants.filter(t => 
+      t.apartmentId === viewingContract.apartmentId && t.status === 'active'
+    );
+    
+    return (
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto z-50"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setViewingContract(null);
+          }
+        }}
+      >
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <div 
+            className="bg-primary rounded-xl shadow-xl w-[90%] max-w-4xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div className="p-6 border-b border-primary flex-shrink-0">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-primary">
+                Chi tiết hợp đồng
+              </h3>
+              <button
+                onClick={() => setViewingContract(null)}
+                className="text-secondary hover:text-primary"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Thông tin hợp đồng</h4>
+                <div className="space-y-2">
+                  <p><span className="font-medium">Số hợp đồng:</span> {viewingContract.contractNumber}</p>
+                  <p><span className="font-medium">Trạng thái:</span> 
+                    <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      viewingContract.status === 'active' ? 'badge-success' : 'badge-danger'
+                    }`}>
+                      {viewingContract.status === 'active' ? 'Hiệu lực' : 'Hết hạn'}
+                    </span>
+                  </p>
+                  <p><span className="font-medium">Ngày tạo:</span> {formatDate(viewingContract.createdAt)}</p>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Thời hạn hợp đồng</h4>
+                <div className="space-y-2">
+                                <p><span className="font-medium">Bắt đầu:</span> {formatDate(viewingContract.startDate)}</p>
+              <p><span className="font-medium">Kết thúc:</span> {formatDate(viewingContract.endDate)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Thông tin căn hộ</h4>
+                <div className="space-y-2">
+                  <p><span className="font-medium">Phòng:</span> {apartment?.roomNumber}</p>
+                  <p><span className="font-medium">Tiền thuê:</span> {viewingContract.monthlyRent?.toLocaleString('vi-VN')} VNĐ</p>
+                  <p><span className="font-medium">Tiền cọc:</span> {viewingContract.deposit?.toLocaleString('vi-VN')} VNĐ</p>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Thông tin người thuê</h4>
+                <div className="space-y-2">
+                  <p><span className="font-medium">Họ tên:</span> {tenant?.fullName}</p>
+                  <p><span className="font-medium">SĐT:</span> {tenant?.phone}</p>
+                  {tenant?.email && <p><span className="font-medium">Email:</span> {tenant?.email}</p>}
+                  {tenant?.idNumber && <p><span className="font-medium">CCCD/CMND:</span> {tenant?.idNumber}</p>}
+                  <p><span className="font-medium">Vai trò:</span> {
+                    tenant?.role === 'room_leader' ? 'Trưởng phòng (Ký HĐ + Ở trọ)' :
+                    tenant?.role === 'contract_signer' ? 'Người ký HĐ (Không ở trọ)' : 'Thành viên'
+                  }</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Members Section */}
+            <div>
+              <h4 className="text-sm font-medium text-secondary mb-3">Thành viên trong phòng</h4>
+              <div className="space-y-3">
+                {apartmentMembers.length > 0 ? (
+                  apartmentMembers.map((member) => (
+                    <div key={member.id} className="bg-primary border border-primary rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-1">
+                              <p className="font-medium text-primary">{member.fullName}</p>
+                              <p className="text-sm text-secondary">{member.phone} {member.email && `• ${member.email}`}</p>
+                              {member.idNumber && (
+                                <p className="text-xs text-light">CCCD: {member.idNumber}</p>
+                              )}
+                            </div>
+                            <div className="text-center">
+                              <div className="text-xs text-secondary">
+                                {member.role === 'contract_signer' && '📝 Ký HĐ (Không ở trọ)'}
+                                {member.role === 'room_leader' && '👑 Trưởng phòng (Ký HĐ + Ở trọ)'}
+                                {member.role === 'member' && '👤 Thành viên (Ở trọ)'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-secondary">
+                    <p className="text-sm">Chưa có thành viên nào trong phòng.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {viewingContract.terms && (
+              <div>
+                <h4 className="text-sm font-medium text-secondary mb-3">Điều khoản hợp đồng</h4>
+                <div className="bg-primary border border-primary rounded-lg p-4">
+                  <p className="text-sm whitespace-pre-wrap">{viewingContract.terms}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleApartmentChange = (apartmentId) => {
+    if (!apartmentId) {
+      setFormData({
+        ...formData,
+        apartmentId: '',
+        monthlyRent: '',
+        deposit: ''
+      });
+      return;
+    }
+
+    // Get room price from cost management or apartment default
+    const roomPrice = getRoomPrice(apartmentId);
+    
+    setFormData({
+      ...formData,
+      apartmentId: apartmentId,
+      monthlyRent: roomPrice.toString(),
+      deposit: roomPrice.toString() // Tiền cọc = 1 tháng tiền phòng
+    });
+  };
+
+  // Function to open renewal modal
+  const openRenewalModal = (contract) => {
+    setRenewingContract(contract);
+    setRenewalFormData({
+      endDate: contract.endDate,
+      monthlyRent: contract.monthlyRent
+    });
+    setIsRenewalModalOpen(true);
+  };
+
+  // Function to close renewal modal
+  const closeRenewalModal = () => {
+    setIsRenewalModalOpen(false);
+    setRenewingContract(null);
+    setRenewalFormData({
+      endDate: '',
+      monthlyRent: ''
+    });
+  };
+
+  // Function to handle contract renewal
+  const handleRenewal = () => {
+    if (!renewalFormData.endDate || !renewalFormData.monthlyRent) {
+      alert('Vui lòng nhập đầy đủ ngày kết thúc mới và giá thuê!');
+      return;
+    }
+
+    // Check if new end date is after current end date
+    if (new Date(renewalFormData.endDate) <= new Date(renewingContract.endDate)) {
+      alert('Ngày kết thúc mới phải sau ngày kết thúc hiện tại!');
+      return;
+    }
+
+    // Update contract
+    updateContract(renewingContract.id, {
+      endDate: renewalFormData.endDate,
+      monthlyRent: parseInt(renewalFormData.monthlyRent),
+      status: 'active' // Ensure status is active after renewal
+    });
+
+    // Update room price if changed
+    if (renewingContract.monthlyRent !== parseInt(renewalFormData.monthlyRent)) {
+      updateRoomPrice(renewingContract.apartmentId, parseInt(renewalFormData.monthlyRent));
+    }
+
+    closeRenewalModal();
   };
 
   return (
@@ -363,7 +854,7 @@ const Contracts = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary">Đã thanh lý</p>
-              <p className="text-2xl font-bold text-gray-600">{contractStats.deactive}</p>
+              <p className="text-2xl font-bold text-gray-600">{contractStats.inactive}</p>
             </div>
             <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
               🔒
@@ -397,7 +888,7 @@ const Contracts = () => {
             <option value="all">Tất cả trạng thái</option>
             <option value="active">Đang hiệu lực</option>
             <option value="expired">Hết hạn</option>
-            <option value="deactive">Đã thanh lý</option>
+            <option value="inactive">Đã thanh lý</option>
           </select>
         </div>
       </div>
@@ -424,6 +915,9 @@ const Contracts = () => {
                   Khách thuê
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
+                  Thành viên
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
                   Thời hạn
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
@@ -441,6 +935,9 @@ const Contracts = () => {
               {filteredContracts.map((contract) => {
                 const apartment = data.apartments.find(apt => apt.id === contract.apartmentId);
                 const tenant = data.tenants.find(t => t.id === contract.tenantId);
+                const apartmentMembers = data.tenants.filter(t => 
+                  t.apartmentId === contract.apartmentId && t.status === 'active'
+                );
                 
                 return (
                   <tr key={contract.id} className="hover-bg-secondary transition-colors">
@@ -459,8 +956,32 @@ const Contracts = () => {
                         {tenant?.fullName}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-primary">
+                        {apartmentMembers.length > 0 ? (
+                          <div className="space-y-1">
+                            {apartmentMembers.slice(0, 2).map((member) => (
+                              <div key={member.id} className="flex items-center space-x-1">
+                                <span className="text-xs">
+                                  {member.role === 'contract_signer' ? '📝' : 
+                                   member.role === 'room_leader' ? '👑' : '👤'}
+                                </span>
+                                <span className="text-xs">{member.fullName}</span>
+                              </div>
+                            ))}
+                            {apartmentMembers.length > 2 && (
+                              <div className="text-xs text-secondary">
+                                +{apartmentMembers.length - 2} người khác
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-secondary">Chưa có thành viên</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary">
-                      {new Date(contract.startDate).toLocaleDateString('vi-VN')} - {new Date(contract.endDate).toLocaleDateString('vi-VN')}
+                      {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-primary font-medium">
                       {contract.monthlyRent?.toLocaleString('vi-VN')} VNĐ
@@ -474,7 +995,7 @@ const Contracts = () => {
                             : 'badge-danger'
                       }`}>
                         {contract.status === 'active' ? 'Hiệu lực' : 
-                         contract.status === 'deactive' ? 'Đã thanh lý' : 'Hết hạn'}
+                         contract.status === 'inactive' ? 'Đã thanh lý' : 'Hết hạn'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -491,11 +1012,27 @@ const Contracts = () => {
                         Sửa
                       </button>
                       {contract.status === 'active' && (
+                        <>
+                          <button 
+                            onClick={() => openRenewalModal(contract)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            Gia hạn
+                          </button>
+                          <button 
+                            onClick={() => handleDeactivate(contract)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            Thanh lý
+                          </button>
+                        </>
+                      )}
+                      {currentUser?.role === 'admin' && (
                         <button 
-                          onClick={() => handleDeactivate(contract)}
-                          className="text-red-600 hover:text-red-800"
+                          onClick={() => handleDeleteContract(contract)}
+                          className="text-red-800 hover:text-red-900 font-semibold"
                         >
-                          Thanh lý
+                          Xóa
                         </button>
                       )}
                     </td>
@@ -525,15 +1062,42 @@ const Contracts = () => {
 
       {/* Create/Edit Contract Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-primary rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-primary">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeModal();
+            }
+          }}
+        >
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div 
+              className="bg-primary rounded-xl shadow-xl w-[90%] max-w-4xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="p-6 border-b border-primary flex-shrink-0">
               <h3 className="text-lg font-semibold text-primary">
                 {editingContract ? 'Chỉnh sửa hợp đồng' : 'Tạo hợp đồng mới'}
               </h3>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+              {editingContract && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-yellow-600">⚠️</span>
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-medium mb-1">Lưu ý khi sửa hợp đồng:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Chỉ có thể thêm/xóa thành viên trong phòng</li>
+                        <li>Không thể thay đổi vai trò của thành viên (đã được quy định trong hợp đồng)</li>
+                        <li>Các thông tin khác của hợp đồng không được phép thay đổi</li>
+                        <li>Danh sách thành viên sẽ tự động đồng bộ với mục Quản lý khách thuê</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
@@ -545,6 +1109,7 @@ const Contracts = () => {
                     onChange={(e) => setFormData({...formData, contractNumber: e.target.value})}
                     className="input w-full"
                     required
+                    disabled={editingContract ? true : false}
                   />
                 </div>
                 
@@ -554,16 +1119,20 @@ const Contracts = () => {
                   </label>
                   <select
                     value={formData.apartmentId}
-                    onChange={(e) => setFormData({...formData, apartmentId: parseInt(e.target.value)})}
+                    onChange={(e) => handleApartmentChange(e.target.value)}
                     className="input w-full"
                     required
+                    disabled={editingContract ? true : false}
                   >
                     <option value="">Chọn căn hộ</option>
-                    {availableApartments.map(apt => (
-                      <option key={apt.id} value={apt.id}>
-                        Phòng {apt.roomNumber} - {apt.rent?.toLocaleString('vi-VN')} VNĐ
-                      </option>
-                    ))}
+                    {availableApartments.map(apt => {
+                      const roomPrice = getRoomPrice(apt.id);
+                      return (
+                        <option key={apt.id} value={apt.id}>
+                          Phòng {apt.roomNumber} - {roomPrice?.toLocaleString('vi-VN')} VNĐ
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 
@@ -571,19 +1140,52 @@ const Contracts = () => {
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Khách thuê
                   </label>
-                  <select
-                    value={formData.tenantId}
-                    onChange={(e) => setFormData({...formData, tenantId: parseInt(e.target.value)})}
-                    className="input w-full"
-                    required
-                  >
-                    <option value="">Chọn khách thuê</option>
-                    {data.tenants.map(tenant => (
-                      <option key={tenant.id} value={tenant.id}>
-                        {tenant.fullName} - {tenant.phone}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Họ và tên"
+                      value={formData.tenantName || ''}
+                      onChange={(e) => setFormData({...formData, tenantName: e.target.value})}
+                      className="input w-full"
+                      required
+                      disabled={editingContract ? true : false}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Số điện thoại"
+                      value={formData.tenantPhone || ''}
+                      onChange={(e) => setFormData({...formData, tenantPhone: e.target.value})}
+                      className="input w-full"
+                      required
+                      disabled={editingContract ? true : false}
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={formData.tenantEmail || ''}
+                      onChange={(e) => setFormData({...formData, tenantEmail: e.target.value})}
+                      className="input w-full"
+                      disabled={editingContract ? true : false}
+                    />
+                    <input
+                      type="text"
+                      placeholder="CCCD/CMND"
+                      value={formData.tenantIdNumber || ''}
+                      onChange={(e) => setFormData({...formData, tenantIdNumber: e.target.value})}
+                      className="input w-full"
+                      disabled={editingContract ? true : false}
+                    />
+                    <select
+                      value={formData.tenantRole || 'room_leader'}
+                      onChange={(e) => setFormData({...formData, tenantRole: e.target.value})}
+                      className="input w-full"
+                      required
+                      disabled={editingContract ? true : false}
+                    >
+                      <option value="room_leader">Trưởng phòng (Ký HĐ + Ở trọ)</option>
+                      <option value="contract_signer">Người ký HĐ (Không ở trọ)</option>
+                    </select>
+                  </div>
                 </div>
                 
                 <div>
@@ -594,10 +1196,11 @@ const Contracts = () => {
                     value={formData.status}
                     onChange={(e) => setFormData({...formData, status: e.target.value})}
                     className="input w-full"
+                    disabled={editingContract ? true : false}
                   >
                     <option value="active">Hiệu lực</option>
                     <option value="expired">Hết hạn</option>
-                    <option value="deactive">Đã thanh lý</option>
+                    <option value="inactive">Đã thanh lý</option>
                   </select>
                 </div>
                 
@@ -611,6 +1214,7 @@ const Contracts = () => {
                     onChange={(e) => setFormData({...formData, startDate: e.target.value})}
                     className="input w-full"
                     required
+                    disabled={editingContract ? true : false}
                   />
                 </div>
                 
@@ -624,6 +1228,7 @@ const Contracts = () => {
                     onChange={(e) => setFormData({...formData, endDate: e.target.value})}
                     className="input w-full"
                     required
+                    disabled={editingContract ? true : false}
                   />
                 </div>
                 
@@ -637,6 +1242,7 @@ const Contracts = () => {
                     onChange={(e) => setFormData({...formData, monthlyRent: parseInt(e.target.value)})}
                     className="input w-full"
                     required
+                    disabled={editingContract ? true : false}
                   />
                   <div className="mt-1 text-xs text-blue-600 bg-blue-50 rounded px-2 py-1">
                     💡 Giá này sẽ tự động đồng bộ với mục "Quản lý Chi phí"
@@ -653,6 +1259,7 @@ const Contracts = () => {
                     onChange={(e) => setFormData({...formData, deposit: parseInt(e.target.value)})}
                     className="input w-full"
                     required
+                    disabled={editingContract ? true : false}
                   />
                 </div>
               </div>
@@ -666,6 +1273,7 @@ const Contracts = () => {
                   onChange={(e) => setFormData({...formData, terms: e.target.value})}
                   className="input w-full h-24"
                   placeholder="Nhập các điều khoản của hợp đồng..."
+                  disabled={editingContract ? true : false}
                 />
               </div>
 
@@ -675,54 +1283,138 @@ const Contracts = () => {
                 
                 {/* Add new member form */}
                 <div className="bg-muted rounded-lg p-4 mb-4">
-                  <h5 className="font-medium text-primary mb-3">Thêm thành viên mới</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Họ và tên"
-                      value={newMember.fullName}
-                      onChange={(e) => setNewMember({...newMember, fullName: e.target.value})}
-                      className="input text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Số điện thoại"
-                      value={newMember.phone}
-                      onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
-                      className="input text-sm"
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={newMember.email}
-                      onChange={(e) => setNewMember({...newMember, email: e.target.value})}
-                      className="input text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="CCCD/CMND"
-                      value={newMember.idNumber}
-                      onChange={(e) => setNewMember({...newMember, idNumber: e.target.value})}
-                      className="input text-sm"
-                    />
-                    <select
-                      value={newMember.role}
-                      onChange={(e) => setNewMember({...newMember, role: e.target.value})}
-                      className="input text-sm"
-                    >
-                      <option value="member">Thành viên</option>
-                      <option value="room_leader">Trưởng phòng</option>
-                      <option value="contract_signer">Người ký HĐ</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={addMember}
-                      className="btn btn-primary text-sm"
-                      disabled={!newMember.fullName || !newMember.phone}
-                    >
-                      Thêm
-                    </button>
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="font-medium text-primary">Thêm thành viên</h5>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowImportTenant(!showImportTenant)}
+                        className="btn btn-secondary text-sm px-3 py-1"
+                      >
+                        {showImportTenant ? '➕ Thêm mới' : '📥 Import có sẵn'}
+                      </button>
+                    </div>
                   </div>
+                  
+                  {showImportTenant ? (
+                    // Import existing tenant
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Tìm khách hàng theo tên, số điện thoại..."
+                          value={tenantSearchTerm}
+                          onChange={(e) => setTenantSearchTerm(e.target.value)}
+                          className="input text-sm w-full pr-10"
+                        />
+                        <svg className="w-5 h-5 text-muted absolute right-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                      
+                      {tenantSearchTerm && (
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                          {data.tenants
+                            .filter(tenant => 
+                              tenant.fullName.toLowerCase().includes(tenantSearchTerm.toLowerCase()) ||
+                              tenant.phone.includes(tenantSearchTerm)
+                            )
+                            .filter(tenant => 
+                              !formData.members?.some(m => m.tenantId === tenant.id)
+                            )
+                            .map(tenant => (
+                              <div key={tenant.id} className="bg-primary border border-primary rounded p-3 hover:bg-secondary cursor-pointer"
+                                onClick={() => {
+                                  const newMemberData = {
+                                    id: Date.now(),
+                                    tenantId: tenant.id,
+                                    fullName: tenant.fullName,
+                                    phone: tenant.phone,
+                                    email: tenant.email || '',
+                                    idNumber: tenant.idNumber || '',
+                                    role: 'member'
+                                  };
+                                  setFormData({
+                                    ...formData,
+                                    members: [...(formData.members || []), newMemberData]
+                                  });
+                                  setTenantSearchTerm('');
+                                }}
+                              >
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <p className="font-medium text-primary">{tenant.fullName}</p>
+                                    <p className="text-sm text-secondary">{tenant.phone} {tenant.email && `• ${tenant.email}`}</p>
+                                  </div>
+                                  <button type="button" className="text-blue-600 hover:text-blue-700 text-sm">
+                                    Chọn
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          {data.tenants.filter(tenant => 
+                            (tenant.fullName.toLowerCase().includes(tenantSearchTerm.toLowerCase()) ||
+                            tenant.phone.includes(tenantSearchTerm)) &&
+                            !formData.members?.some(m => m.tenantId === tenant.id)
+                          ).length === 0 && (
+                            <p className="text-center text-secondary text-sm py-3">
+                              Không tìm thấy khách hàng phù hợp
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Add new member form
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Họ và tên"
+                        value={newMember.fullName}
+                        onChange={(e) => setNewMember({...newMember, fullName: e.target.value})}
+                        className="input text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Số điện thoại"
+                        value={newMember.phone}
+                        onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
+                        className="input text-sm"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={newMember.email}
+                        onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                        className="input text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="CCCD/CMND"
+                        value={newMember.idNumber}
+                        onChange={(e) => setNewMember({...newMember, idNumber: e.target.value})}
+                        className="input text-sm"
+                      />
+                      <select
+                        value={newMember.role}
+                        onChange={(e) => setNewMember({...newMember, role: e.target.value})}
+                        className="input text-sm"
+                        disabled={editingContract ? true : false}
+                      >
+                        <option value="member">Thành viên</option>
+                        <option value="room_leader">Trưởng phòng</option>
+                        <option value="contract_signer">Người ký HĐ</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={addMember}
+                        className="btn btn-primary text-sm"
+                        disabled={!newMember.fullName || !newMember.phone}
+                      >
+                        Thêm
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Members list */}
@@ -730,43 +1422,137 @@ const Contracts = () => {
                   <div className="space-y-3">
                     <h5 className="font-medium text-primary">Danh sách thành viên ({formData.members.length})</h5>
                     {formData.members.map((member, index) => (
-                      <div key={member.id || index} className="flex items-center justify-between bg-primary border border-primary rounded-lg p-3">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex-1">
-                              <p className="font-medium text-primary">{member.fullName}</p>
-                              <p className="text-sm text-secondary">{member.phone} {member.email && `• ${member.email}`}</p>
-                              {member.idNumber && (
-                                <p className="text-xs text-light">CCCD: {member.idNumber}</p>
-                              )}
+                      <div key={member.id || index} className="bg-primary border border-primary rounded-lg p-3">
+                        {editingMember === member.id ? (
+                          // Edit mode
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-secondary mb-1">Họ và tên *</label>
+                                <input
+                                  type="text"
+                                  value={editMemberData.fullName}
+                                  onChange={(e) => setEditMemberData({...editMemberData, fullName: e.target.value})}
+                                  className="input text-sm"
+                                  placeholder="Nhập họ và tên"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-secondary mb-1">Số điện thoại *</label>
+                                <input
+                                  type="text"
+                                  value={editMemberData.phone}
+                                  onChange={(e) => setEditMemberData({...editMemberData, phone: e.target.value})}
+                                  className="input text-sm"
+                                  placeholder="0901234567"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-secondary mb-1">Email</label>
+                                <input
+                                  type="email"
+                                  value={editMemberData.email}
+                                  onChange={(e) => setEditMemberData({...editMemberData, email: e.target.value})}
+                                  className="input text-sm"
+                                  placeholder="email@example.com"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-secondary mb-1">CCCD/CMND</label>
+                                <input
+                                  type="text"
+                                  value={editMemberData.idNumber}
+                                  onChange={(e) => setEditMemberData({...editMemberData, idNumber: e.target.value})}
+                                  className="input text-sm"
+                                  placeholder="123456789"
+                                />
+                              </div>
                             </div>
-                            <div className="text-center">
+                            <div>
+                              <label className="block text-xs font-medium text-secondary mb-1">Vai trò</label>
                               <select
-                                value={member.role}
-                                onChange={(e) => updateMemberRole(member.id, e.target.value)}
-                                className="input text-xs px-2 py-1"
+                                value={editMemberData.role}
+                                onChange={(e) => setEditMemberData({...editMemberData, role: e.target.value})}
+                                className="input text-sm"
+                                disabled={editingContract ? true : false}
                               >
                                 <option value="member">Thành viên</option>
                                 <option value="room_leader">Trưởng phòng</option>
                                 <option value="contract_signer">Người ký HĐ</option>
                               </select>
-                              <div className="text-xs text-secondary mt-1">
-                                {member.role === 'contract_signer' && '📝 Ký HĐ'}
-                                {member.role === 'room_leader' && '👑 Trưởng phòng'}
-                                {member.role === 'member' && '👤 Thành viên'}
-                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                type="button"
+                                onClick={saveMemberChanges}
+                                className="btn btn-primary text-xs px-3 py-1"
+                              >
+                                💾 Lưu
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditMember}
+                                className="btn btn-secondary text-xs px-3 py-1"
+                              >
+                                ❌ Hủy
+                              </button>
                             </div>
                           </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeMember(member.id)}
-                          className="text-danger hover:text-red-700 ml-3"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        ) : (
+                          // View mode
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3">
+                                <div className="flex-1">
+                                  <p className="font-medium text-primary">{member.fullName}</p>
+                                  <p className="text-sm text-secondary">{member.phone} {member.email && `• ${member.email}`}</p>
+                                  {member.idNumber && (
+                                    <p className="text-xs text-light">CCCD: {member.idNumber}</p>
+                                  )}
+                                </div>
+                                <div className="text-center">
+                                  <select
+                                    value={member.role}
+                                    onChange={(e) => updateMemberRole(member.id, e.target.value)}
+                                    className="input text-xs px-2 py-1"
+                                    disabled={editingContract ? true : false}
+                                  >
+                                    <option value="member">Thành viên</option>
+                                    <option value="room_leader">Trưởng phòng</option>
+                                    <option value="contract_signer">Người ký HĐ</option>
+                                  </select>
+                                  <div className="text-xs text-secondary mt-1">
+                                    {member.role === 'contract_signer' && '📝 Ký HĐ (Không ở trọ)'}
+                                    {member.role === 'room_leader' && '👑 Trưởng phòng (Ký HĐ + Ở trọ)'}
+                                    {member.role === 'member' && '👤 Thành viên (Ở trọ)'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2 ml-3">
+                              <button
+                                type="button"
+                                onClick={() => startEditMember(member)}
+                                className="text-blue-600 hover:text-blue-700"
+                                title="Sửa thông tin"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeMember(member.id)}
+                                className="text-danger hover:text-red-700"
+                                title="Xóa thành viên"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -778,8 +1564,10 @@ const Contracts = () => {
                   </div>
                 )}
               </div>
-              
-              <div className="flex justify-end space-x-3 pt-4 border-t border-primary">
+            </form>
+            
+            <div className="p-6 border-t border-primary flex-shrink-0">
+              <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={closeModal}
@@ -788,124 +1576,157 @@ const Contracts = () => {
                   Hủy
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   className="btn btn-primary"
                 >
                   {editingContract ? 'Cập nhật' : 'Tạo hợp đồng'}
                 </button>
               </div>
-            </form>
+            </div>
+          </div>
           </div>
         </div>
       )}
 
       {/* View Contract Modal */}
-      {viewingContract && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-primary rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-primary">
-              <div className="flex justify-between items-center">
+      {viewingContract && renderViewModal()}
+
+      {/* Renewal Contract Modal */}
+      {isRenewalModalOpen && renewingContract && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeRenewalModal();
+            }
+          }}
+        >
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div 
+              className="bg-primary rounded-xl shadow-xl w-[90%] max-w-2xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-primary flex-shrink-0">
                 <h3 className="text-lg font-semibold text-primary">
-                  Chi tiết hợp đồng
+                  Gia hạn hợp đồng
                 </h3>
-                <button
-                  onClick={closeModal}
-                  className="text-secondary hover:text-primary"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
               </div>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {(() => {
-                const apartment = data.apartments.find(apt => apt.id === viewingContract.apartmentId);
-                const tenant = data.tenants.find(t => t.id === viewingContract.tenantId);
-                
-                return (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Thông tin hợp đồng</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">Số hợp đồng:</span> {viewingContract.contractNumber}</p>
-                          <p><span className="font-medium">Trạng thái:</span> 
-                            <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              viewingContract.status === 'active' ? 'badge-success' : 'badge-danger'
-                            }`}>
-                              {viewingContract.status === 'active' ? 'Hiệu lực' : 'Hết hạn'}
-                            </span>
-                          </p>
-                          <p><span className="font-medium">Ngày tạo:</span> {new Date(viewingContract.createdAt).toLocaleDateString('vi-VN')}</p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Thời hạn hợp đồng</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">Bắt đầu:</span> {new Date(viewingContract.startDate).toLocaleDateString('vi-VN')}</p>
-                          <p><span className="font-medium">Kết thúc:</span> {new Date(viewingContract.endDate).toLocaleDateString('vi-VN')}</p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Thông tin căn hộ</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">Phòng:</span> {apartment?.roomNumber}</p>
-                          <p><span className="font-medium">Diện tích:</span> {apartment?.area} m²</p>
-                          <p><span className="font-medium">Loại phòng:</span> {apartment?.type}</p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Thông tin khách thuê</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">Họ tên:</span> {tenant?.fullName}</p>
-                          <p><span className="font-medium">Điện thoại:</span> {tenant?.phone}</p>
-                          <p><span className="font-medium">Email:</span> {tenant?.email}</p>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Chi phí</h4>
-                        <div className="space-y-2">
-                          <p><span className="font-medium">Tiền thuê:</span> {viewingContract.monthlyRent?.toLocaleString('vi-VN')} VNĐ/tháng</p>
-                          <p><span className="font-medium">Tiền cọc:</span> {viewingContract.deposit?.toLocaleString('vi-VN')} VNĐ</p>
-                        </div>
-                      </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Contract Info */}
+                <div className="bg-secondary rounded-lg p-4 mb-6">
+                  <h4 className="font-medium text-primary mb-3">Thông tin hợp đồng</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-secondary">Số hợp đồng:</span>
+                      <span className="text-primary font-medium ml-2">{renewingContract.contractNumber}</span>
                     </div>
-                    
-                    {viewingContract.terms && (
-                      <div>
-                        <h4 className="text-sm font-medium text-secondary mb-3">Điều khoản hợp đồng</h4>
-                        <div className="bg-secondary rounded-lg p-4">
-                          <p className="text-sm whitespace-pre-wrap">{viewingContract.terms}</p>
+                    <div>
+                      <span className="text-secondary">Phòng:</span>
+                      <span className="text-primary font-medium ml-2">
+                        {data.apartments.find(apt => apt.id === renewingContract.apartmentId)?.roomNumber}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-secondary">Khách thuê:</span>
+                      <span className="text-primary font-medium ml-2">
+                        {data.tenants.find(t => t.id === renewingContract.tenantId)?.fullName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-secondary">Ngày hết hạn hiện tại:</span>
+                      <span className="text-primary font-medium ml-2">
+                        {formatDate(renewingContract.endDate)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-secondary">Giá thuê hiện tại:</span>
+                      <span className="text-primary font-medium ml-2">
+                        {renewingContract.monthlyRent?.toLocaleString('vi-VN')} VNĐ
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Renewal Form */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Ngày kết thúc mới <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={renewalFormData.endDate}
+                      onChange={(e) => setRenewalFormData({...renewalFormData, endDate: e.target.value})}
+                      min={new Date(new Date(renewingContract.endDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                      className="input w-full"
+                      required
+                    />
+                    <p className="text-xs text-secondary mt-1">
+                      Ngày kết thúc mới phải sau ngày {formatDate(renewingContract.endDate)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Giá thuê hàng tháng mới (VNĐ) <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={renewalFormData.monthlyRent}
+                      onChange={(e) => setRenewalFormData({...renewalFormData, monthlyRent: e.target.value})}
+                      className="input w-full"
+                      placeholder="Nhập giá thuê mới"
+                      required
+                    />
+                    {renewalFormData.monthlyRent && parseInt(renewalFormData.monthlyRent) !== renewingContract.monthlyRent && (
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start space-x-2">
+                          <span className="text-blue-600">💡</span>
+                          <div className="text-sm text-blue-800">
+                            <p className="font-medium">Thay đổi giá thuê:</p>
+                            <p>Từ {renewingContract.monthlyRent?.toLocaleString('vi-VN')} VNĐ → {parseInt(renewalFormData.monthlyRent).toLocaleString('vi-VN')} VNĐ</p>
+                            <p className="mt-1">Giá mới sẽ được cập nhật trong mục "Quản lý Chi phí"</p>
+                          </div>
                         </div>
                       </div>
                     )}
-                    
-                    <div className="flex justify-end space-x-3 pt-4 border-t border-primary">
-                      <button
-                        onClick={() => {
-                          setViewingContract(null);
-                          openModal(viewingContract);
-                        }}
-                        className="btn btn-primary"
-                      >
-                        Chỉnh sửa
-                      </button>
-                      <button
-                        onClick={closeModal}
-                        className="btn btn-secondary"
-                      >
-                        Đóng
-                      </button>
+                  </div>
+
+                  {/* Summary */}
+                  {renewalFormData.endDate && renewalFormData.monthlyRent && (
+                    <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <h5 className="font-medium text-green-800 mb-2">Tóm tắt gia hạn:</h5>
+                      <ul className="text-sm text-green-700 space-y-1">
+                        <li>• Hợp đồng sẽ được gia hạn đến: <strong>{formatDate(renewalFormData.endDate)}</strong></li>
+                        <li>• Thời gian gia hạn: <strong>{Math.ceil((new Date(renewalFormData.endDate) - new Date(renewingContract.endDate)) / (1000 * 60 * 60 * 24))} ngày</strong></li>
+                        <li>• Giá thuê mới: <strong>{parseInt(renewalFormData.monthlyRent).toLocaleString('vi-VN')} VNĐ/tháng</strong></li>
+                      </ul>
                     </div>
-                  </>
-                );
-              })()}
+                  )}
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-primary flex-shrink-0">
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={closeRenewalModal}
+                    className="btn btn-secondary"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRenewal}
+                    className="btn btn-primary"
+                    disabled={!renewalFormData.endDate || !renewalFormData.monthlyRent}
+                  >
+                    Xác nhận gia hạn
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

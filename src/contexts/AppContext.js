@@ -7,13 +7,35 @@ const ROOM_NUMBERS = ['102', '201', '202', '301', '302', '401', '402', '501', '5
 
 // Sample data for development
 const initialData = {
-  apartments: ROOM_NUMBERS.map(room => ({
-    id: room,
-    roomNumber: room,
-    status: room === '102' ? 'occupied' : Math.random() > 0.7 ? 'occupied' : 'available',
-    rentAmount: 5000000 + Math.floor(Math.random() * 3000000), // 5-8M VND
-    currentTenantId: room === '102' ? '1' : null, // Link tenant 1 to room 102
-  })),
+  apartments: ROOM_NUMBERS.map(room => {
+    // Phòng 201, 301, 401, 501, 601 có diện tích 25m2, các phòng khác 20m2
+    const size = ['201', '301', '401', '501', '601'].includes(room) ? 25 : 20;
+    
+    // Giá phòng theo quy định:
+    // Phòng *01: 5,200,000 VNĐ
+    // Phòng *02: 4,200,000 VNĐ
+    // Phòng 602: 4,400,000 VNĐ (đặc biệt)
+    let rent;
+    if (room === '602') {
+      rent = 4400000;
+    } else if (room.endsWith('01')) {
+      rent = 5200000;
+    } else if (room.endsWith('02')) {
+      rent = 4200000;
+    } else {
+      rent = 5000000; // Default fallback
+    }
+    
+    return {
+      id: room,
+      roomNumber: room,
+      size: size,
+      status: room === '102' ? 'occupied' : Math.random() > 0.7 ? 'occupied' : 'available',
+      rent: rent,
+      currentTenantId: room === '102' ? '1' : null, // Link tenant 1 to room 102
+      description: `Căn hộ ${size}m² tiêu chuẩn`,
+    };
+  }),
   tenants: [
     {
       id: '1',
@@ -23,7 +45,8 @@ const initialData = {
       idNumber: '123456789',
       address: '123 Lê Lợi, Q1, TP.HCM',
       apartmentId: '102', // Assigned apartment
-      role: 'contract_signer', // contract_signer, room_leader, member
+      role: 'room_leader', // Trưởng phòng: vừa ký hợp đồng vừa ở trọ
+      status: 'active', // active, inactive
     },
     {
       id: '2',
@@ -33,7 +56,8 @@ const initialData = {
       idNumber: '987654321',
       address: '456 Nguyễn Huệ, Q1, TP.HCM',
       apartmentId: '102', // Same apartment as tenant 1
-      role: 'room_leader',
+      role: 'member',
+      status: 'active',
     },
     {
       id: '3',
@@ -44,6 +68,7 @@ const initialData = {
       address: '789 Điện Biên Phủ, Q3, TP.HCM',
       apartmentId: '102', // Same apartment
       role: 'member',
+      status: 'active',
     },
   ],
   contracts: [
@@ -101,11 +126,11 @@ const initialData = {
     },
   ],
   costSettings: {
-    electricityRate: 3500, // VNĐ/kWh
-    waterRatePerPerson: 50000, // VNĐ/người/tháng
-    internetRatePerRoom: 200000, // VNĐ/phòng/tháng
-    serviceFeePerPerson: 30000, // VNĐ/người/tháng
-    lastUpdated: '2024-01-01T00:00:00.000Z'
+    electricityRate: 4000, // VNĐ/kWh
+    waterRatePerPerson: 100000, // VNĐ/người/tháng
+    internetRatePerRoom: 100000, // VNĐ/phòng/tháng
+    serviceFeePerPerson: 100000, // VNĐ/người/tháng
+    lastUpdated: new Date().toISOString()
   },
   roomPrices: {
     // Giá phòng riêng cho từng phòng
@@ -152,12 +177,57 @@ export const AppProvider = ({ children }) => {
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
     }
+    
+    // Removed automatic check for expired contracts
   }, []);
 
   useEffect(() => {
     // Save data to localStorage whenever it changes
     localStorage.setItem('apartmentData', JSON.stringify(data));
   }, [data]);
+
+  // Function to check and handle expired contracts (kept for manual use only)
+  const checkExpiredContracts = () => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const expiredContracts = data.contracts.filter(contract => 
+      contract.status === 'active' && contract.endDate < today
+    );
+    
+    if (expiredContracts.length > 0) {
+      setData(prev => {
+        const updatedContracts = prev.contracts.map(contract => 
+          expiredContracts.some(ec => ec.id === contract.id)
+            ? { ...contract, status: 'expired' }
+            : contract
+        );
+        
+        const updatedTenants = prev.tenants.map(tenant => {
+          const isInExpiredContract = expiredContracts.some(contract => 
+            contract.apartmentId === tenant.apartmentId
+          );
+          return isInExpiredContract && tenant.status === 'active'
+            ? { ...tenant, status: 'inactive' }
+            : tenant;
+        });
+        
+        const updatedApartments = prev.apartments.map(apartment => {
+          const hasExpiredContract = expiredContracts.some(contract => 
+            contract.apartmentId === apartment.id
+          );
+          return hasExpiredContract
+            ? { ...apartment, status: 'available' }
+            : apartment;
+        });
+        
+        return {
+          ...prev,
+          contracts: updatedContracts,
+          tenants: updatedTenants,
+          apartments: updatedApartments
+        };
+      });
+    }
+  };
 
   // Authentication functions
   const login = (username, password) => {
@@ -210,6 +280,7 @@ export const AppProvider = ({ children }) => {
     const newTenant = {
       ...tenant,
       id: Date.now().toString(),
+      status: tenant.status || 'active', // Default to active if not specified
     };
     setData(prev => ({
       ...prev,
@@ -234,8 +305,39 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  // Assign tenant to apartment
+  // Assign tenant to apartment with role validation
   const assignTenantToApartment = (tenantId, apartmentId, role) => {
+    // Validate role constraints if apartment is specified
+    if (apartmentId && role) {
+      const apartmentTenants = data.tenants.filter(t => 
+        t.apartmentId === apartmentId && t.id !== tenantId
+      );
+      
+      const hasContractSigner = apartmentTenants.some(t => t.role === 'contract_signer');
+      const hasRoomLeader = apartmentTenants.some(t => t.role === 'room_leader');
+      
+      // Check role constraints
+      if (hasRoomLeader && role === 'contract_signer') {
+        console.warn('Cannot assign contract_signer: apartment already has room_leader');
+        return false;
+      }
+      
+      if (hasContractSigner && role === 'room_leader') {
+        console.warn('Cannot assign room_leader: apartment already has contract_signer');
+        return false;
+      }
+      
+      if (hasContractSigner && role === 'contract_signer') {
+        console.warn('Cannot assign contract_signer: apartment already has one');
+        return false;
+      }
+      
+      if (hasRoomLeader && role === 'room_leader') {
+        console.warn('Cannot assign room_leader: apartment already has one');
+        return false;
+      }
+    }
+    
     setData(prev => ({
       ...prev,
       tenants: prev.tenants.map(tenant =>
@@ -244,17 +346,24 @@ export const AppProvider = ({ children }) => {
           : tenant
       )
     }));
+    
+    return true;
   };
 
-  // Get tenants for an apartment
+  // Get tenants for an apartment (only active tenants)
   const getApartmentTenants = (apartmentId) => {
-    return data.tenants.filter(tenant => tenant.apartmentId === apartmentId);
+    return data.tenants.filter(tenant => 
+      tenant.apartmentId === apartmentId && 
+      tenant.status === 'active'
+    );
   };
 
-  // Get tenant count for apartment (excluding contract signers)
+  // Get tenant count for apartment (excluding contract signers, including room leaders, only active)
   const getApartmentTenantCount = (apartmentId) => {
     return data.tenants.filter(tenant => 
-      tenant.apartmentId === apartmentId && tenant.role !== 'contract_signer'
+      tenant.apartmentId === apartmentId && 
+      tenant.role !== 'contract_signer' &&
+      tenant.status === 'active'
     ).length;
   };
 
@@ -419,6 +528,7 @@ export const AppProvider = ({ children }) => {
     updateCostSettings,
     updateRoomPrice,
     getRoomPrice,
+    checkExpiredContracts,
   };
 
   return (
