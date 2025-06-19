@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { useApp } from '../../contexts/AppContext';
 
 const Login = ({ onLogin }) => {
-  const { language, changeLanguage, t } = useLanguage();
   const { login } = useApp();
   const [formData, setFormData] = useState({
     username: '',
@@ -30,10 +28,10 @@ const Login = ({ onLogin }) => {
       if (success) {
         onLogin();
       } else {
-        setError(language === 'vi' ? 'Tên đăng nhập hoặc mật khẩu không đúng' : 'Invalid username or password');
+        setError('Tên đăng nhập hoặc mật khẩu không đúng');
       }
     } catch (err) {
-      setError(language === 'vi' ? 'Đã xảy ra lỗi, vui lòng thử lại' : 'An error occurred, please try again');
+      setError('Đã xảy ra lỗi, vui lòng thử lại');
     } finally {
       setIsLoading(false);
     }
@@ -53,38 +51,11 @@ const Login = ({ onLogin }) => {
             Apartment CRM
           </h1>
           <h2 className="text-2xl font-bold text-gray-900">
-            {language === 'vi' ? 'Đăng nhập' : 'Sign in'}
+            Đăng nhập
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            {language === 'vi' 
-              ? 'Đăng nhập vào hệ thống quản lý căn hộ' 
-              : 'Sign in to apartment management system'
-            }
+            Đăng nhập vào hệ thống quản lý căn hộ
           </p>
-        </div>
-
-        {/* Language Switcher */}
-        <div className="flex justify-center mt-4 space-x-2">
-          <button
-            onClick={() => changeLanguage('vi')}
-            className={`px-3 py-1 text-sm rounded ${
-              language === 'vi'
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Tiếng Việt
-          </button>
-          <button
-            onClick={() => changeLanguage('en')}
-            className={`px-3 py-1 text-sm rounded ${
-              language === 'en'
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            English
-          </button>
         </div>
       </div>
 
@@ -93,7 +64,7 @@ const Login = ({ onLogin }) => {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                {language === 'vi' ? 'Tên đăng nhập' : 'Username'}
+                Tên đăng nhập
               </label>
               <div className="mt-1">
                 <input
@@ -104,14 +75,14 @@ const Login = ({ onLogin }) => {
                   value={formData.username}
                   onChange={handleChange}
                   className="input"
-                  placeholder={language === 'vi' ? 'Nhập tên đăng nhập' : 'Enter username'}
+                  placeholder="Nhập tên đăng nhập"
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                {language === 'vi' ? 'Mật khẩu' : 'Password'}
+                Mật khẩu
               </label>
               <div className="mt-1">
                 <input
@@ -122,7 +93,7 @@ const Login = ({ onLogin }) => {
                   value={formData.password}
                   onChange={handleChange}
                   className="input"
-                  placeholder={language === 'vi' ? 'Nhập mật khẩu' : 'Enter password'}
+                  placeholder="Nhập mật khẩu"
                 />
               </div>
             </div>
@@ -139,10 +110,7 @@ const Login = ({ onLogin }) => {
                 disabled={isLoading}
                 className="w-full btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading 
-                  ? (language === 'vi' ? 'Đang đăng nhập...' : 'Signing in...') 
-                  : (language === 'vi' ? 'Đăng nhập' : 'Sign in')
-                }
+                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </button>
             </div>
           </form>
@@ -150,7 +118,7 @@ const Login = ({ onLogin }) => {
           {/* Demo Credentials */}
           <div className="mt-6 border-t border-gray-200 pt-6">
             <h3 className="text-sm font-medium text-gray-700 mb-3">
-              {language === 'vi' ? 'Tài khoản demo:' : 'Demo credentials:'}
+              Tài khoản demo:
             </h3>
             <div className="space-y-2 text-xs">
               {demoCredentials.map((cred, index) => (
@@ -165,7 +133,7 @@ const Login = ({ onLogin }) => {
                     }}
                     className="text-primary-600 hover:text-primary-800"
                   >
-                    {language === 'vi' ? 'Sử dụng' : 'Use'}
+                    Sử dụng
                   </button>
                 </div>
               ))}

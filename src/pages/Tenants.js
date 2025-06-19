@@ -8,13 +8,11 @@ const Tenants = () => {
   const { t } = useLanguage();
   const { 
     data, 
-    currentUser,
+    currentUser, 
     addTenant, 
     updateTenant, 
-    deleteTenant, 
-    assignTenantToApartment,
-    getApartmentTenants,
-    getApartmentTenantCount 
+    deleteTenant,
+    getApartmentTenantCount
   } = useApp();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -95,43 +93,6 @@ const Tenants = () => {
     }
   };
 
-  const validateRoleInApartment = (apartmentId, role, excludeTenantId = null) => {
-    if (!apartmentId) return true; // No apartment selected, no validation needed
-    
-    const apartmentTenants = data.tenants.filter(t => 
-      t.apartmentId === apartmentId && t.id !== excludeTenantId
-    );
-    
-    const hasContractSigner = apartmentTenants.some(t => t.role === 'contract_signer');
-    const hasRoomLeader = apartmentTenants.some(t => t.role === 'room_leader');
-    
-    // If trying to add contract_signer when there's already a room_leader
-    if (hasRoomLeader && role === 'contract_signer') {
-      alert('Phòng đã có trưởng phòng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
-      return false;
-    }
-    
-    // If trying to add room_leader when there's already a contract_signer
-    if (hasContractSigner && role === 'room_leader') {
-      alert('Phòng đã có người ký hợp đồng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
-      return false;
-    }
-    
-    // If there's already a contract_signer and trying to add another contract_signer
-    if (hasContractSigner && role === 'contract_signer') {
-      alert('Mỗi phòng chỉ có thể có 1 người ký hợp đồng.');
-      return false;
-    }
-    
-    // If there's already a room_leader and trying to add another room_leader
-    if (hasRoomLeader && role === 'room_leader') {
-      alert('Mỗi phòng chỉ có thể có 1 trưởng phòng.');
-      return false;
-    }
-    
-    return true;
-  };
-
   const handleAddTenant = () => {
     // Validate required fields
     if (!formData.fullName || !formData.phone || !formData.idNumber || 
@@ -171,7 +132,7 @@ const Tenants = () => {
       return;
     }
     
-    const newTenant = addTenant(formData);
+    addTenant(formData);
     resetFormData();
     setIsAddModalOpen(false);
   };
@@ -218,8 +179,6 @@ const Tenants = () => {
     setSelectedTenant(null);
   };
 
-
-
   const handleDeleteTenant = (tenantId) => {
     if (currentUser?.role !== 'admin') {
       alert('Chỉ admin mới có quyền xóa khách thuê.');
@@ -241,8 +200,6 @@ const Tenants = () => {
     
     return matchesSearch && matchesRole && matchesStatus;
   });
-
-
 
   const TenantForm = ({ onSubmit, submitText, isEditing = false }) => (
     <div className="space-y-4">
@@ -429,6 +386,20 @@ const Tenants = () => {
       </div>
     </div>
   );
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (selectedTenant) {
+      updateTenant(selectedTenant.id, formData);
+    } else {
+      addTenant(formData);
+    }
+    
+    resetFormData();
+    setIsEditModalOpen(false);
+    setSelectedTenant(null);
+  };
 
   return (
     <div className="space-y-8">
@@ -710,7 +681,7 @@ const Tenants = () => {
               {t('cancel')}
             </button>
             <button
-              onClick={handleUpdateTenant}
+              onClick={handleSubmit}
               className="flex-1 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               disabled={!formData.fullName || !formData.phone}
             >
@@ -720,12 +691,11 @@ const Tenants = () => {
         }
       >
         <TenantForm 
-          onSubmit={handleUpdateTenant}
+          onSubmit={handleSubmit}
           submitText="Cập nhật"
           isEditing={true}
         />
       </Modal>
-
 
     </div>
   );

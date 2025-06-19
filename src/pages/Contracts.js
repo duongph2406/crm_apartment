@@ -5,7 +5,19 @@ import { formatDate } from '../utils/dateFormat';
 
 const Contracts = () => {
   const { t } = useLanguage();
-  const { data, currentUser, updateContract, addContract, deleteContract, addTenant, updateTenant, assignTenantToApartment, updateRoomPrice, getRoomPrice, generateContractNumber } = useApp();
+  const { 
+    data, 
+    currentUser, 
+    addContract, 
+    updateContract, 
+    deleteContract,
+    addTenant,
+    updateTenant,
+    assignTenantToApartment,
+    updateRoomPrice,
+    getRoomPrice,
+    generateContractNumber
+  } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');

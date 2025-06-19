@@ -40,16 +40,13 @@ export const ThemeProvider = ({ children }) => {
 
   // Listen for system theme changes
   useEffect(() => {
+    updateResolvedTheme();
+    
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      if (theme === 'system') {
-        setResolvedTheme(getSystemTheme());
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme]);
+    mediaQuery.addEventListener('change', updateResolvedTheme);
+    
+    return () => mediaQuery.removeEventListener('change', updateResolvedTheme);
+  }, [theme, updateResolvedTheme]);
 
   // Apply theme to document
   useEffect(() => {

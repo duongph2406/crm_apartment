@@ -4,7 +4,6 @@ import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
 
 const MyContracts = () => {
-  const { t } = useLanguage();
   const { data, currentUser } = useApp();
 
   // Get tenant information and contracts for the current user

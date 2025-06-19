@@ -9,17 +9,18 @@ const Apartments = () => {
   const { t } = useLanguage();
   const { 
     data, 
-    updateApartment, 
-    addApartment, 
-    deleteApartment,
-    getApartmentTenants,
+    currentUser,
+    updateApartment,
     getApartmentTenantCount,
+    getApartmentContractCount,
+    getApartmentTenants,
     getPrimaryTenant,
     getRoomPrice
   } = useApp();
   const [selectedApartment, setSelectedApartment] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [filter, setFilter] = useState('all');
 
   // Handle ESC key
@@ -42,7 +43,7 @@ const Apartments = () => {
     roomNumber: '',
     size: '',
     description: '',
-    status: '',
+    status: 'available',
     maintenanceReason: '',
   });
   
@@ -122,15 +123,27 @@ const Apartments = () => {
     setIsEditModalOpen(true);
   };
 
+  // Update selected apartment when data changes
+  if (selectedApartment) {
+    const updatedApartment = data.apartments.find(apt => apt.id === selectedApartment.id);
+    if (updatedApartment) {
+      setSelectedApartment(updatedApartment);
+    }
+  }
 
-
-  const statusConfig = [
-    ['available', { icon: '🔑', label: 'Trống', description: 'Sẵn sàng cho thuê' }],
-    ['occupied', { icon: '🏠', label: 'Đã thuê', description: 'Có khách đang ở' }],
-    ['maintenance', { icon: '🔧', label: 'Bảo trì', description: 'Đang sửa chữa' }]
-  ];
+  const openApartmentDetail = (apartment) => {
+    setSelectedApartment(apartment);
+    setIsDetailModalOpen(true);
+  };
 
   const EditApartmentModal = () => {
+    // useState must be called first before any conditions
+    const [modalFormData, setModalFormData] = useState({
+      status: selectedApartment?.status || 'available',
+      notes: selectedApartment?.notes || '',
+      features: selectedApartment?.features || ''
+    });
+
     if (!selectedApartment) return null;
 
     // Check if apartment has active contract
@@ -145,11 +158,11 @@ const Apartments = () => {
     const handleSave = () => {
       // Get values from refs
       const currentValues = {
-        roomNumber: roomNumberRef.current?.value || formData.roomNumber,
-        size: sizeRef.current?.value || formData.size,
-        description: descriptionRef.current?.value || formData.description,
-        status: formData.status,
-        maintenanceReason: maintenanceReasonRef.current?.value || formData.maintenanceReason
+        roomNumber: roomNumberRef.current?.value || selectedApartment.roomNumber,
+        size: sizeRef.current?.value || selectedApartment.size,
+        description: descriptionRef.current?.value || selectedApartment.description,
+        status: modalFormData.status,
+        maintenanceReason: maintenanceReasonRef.current?.value || selectedApartment.maintenanceReason
       };
       
       // Validate maintenance reason if status is maintenance
@@ -180,14 +193,6 @@ const Apartments = () => {
       updateApartment(selectedApartment.id, allowedChanges);
       setIsEditModalOpen(false);
       setSelectedApartment(null);
-      // Reset form data
-      setFormData({
-        roomNumber: '',
-        size: '',
-        description: '',
-        status: '',
-        maintenanceReason: '',
-      });
     };
 
     return (
@@ -261,7 +266,7 @@ const Apartments = () => {
             <input
               ref={roomNumberRef}
               type="text"
-              defaultValue={formData.roomNumber}
+              defaultValue={selectedApartment.roomNumber}
               onChange={(e) => {
                 formData.roomNumber = e.target.value;
               }}
@@ -277,7 +282,7 @@ const Apartments = () => {
             <input
               ref={sizeRef}
               type="number"
-              defaultValue={formData.size}
+              defaultValue={selectedApartment.size}
               onChange={(e) => {
                 formData.size = e.target.value;
               }}
@@ -292,7 +297,7 @@ const Apartments = () => {
             </label>
             <textarea
               ref={descriptionRef}
-              defaultValue={formData.description}
+              defaultValue={selectedApartment.description}
               onChange={(e) => {
                 formData.description = e.target.value;
               }}
@@ -335,10 +340,10 @@ const Apartments = () => {
                       type="radio"
                       name="status"
                       value={status}
-                      checked={formData.status === status}
+                      checked={modalFormData.status === status}
                       onChange={(e) => {
                         const newValue = e.target.value;
-                        setFormData(prev => ({ ...prev, status: newValue }));
+                        setModalFormData(prev => ({ ...prev, status: newValue }));
                       }}
                       className="mr-3"
                     />
@@ -351,14 +356,14 @@ const Apartments = () => {
                 ))}
                 
                 {/* Maintenance reason input */}
-                {formData.status === 'maintenance' && (
+                {modalFormData.status === 'maintenance' && (
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Lý do bảo trì <span className="text-red-500">*</span>
                     </label>
                     <textarea
                       ref={maintenanceReasonRef}
-                      defaultValue={formData.maintenanceReason || ''}
+                      defaultValue={selectedApartment.maintenanceReason || ''}
                       onChange={(e) => {
                         formData.maintenanceReason = e.target.value;
                       }}
@@ -382,7 +387,8 @@ const Apartments = () => {
     const tenants = getApartmentTenants(selectedApartment.id);
 
     const handleConfirm = () => {
-      updateApartment(selectedApartment.id, formData);
+      // Use a basic update - the specific data should be passed from the calling context
+      updateApartment(selectedApartment.id, { status: 'available' });
       setIsConfirmModalOpen(false);
       setIsEditModalOpen(false);
       setSelectedApartment(null);
@@ -440,7 +446,7 @@ const Apartments = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="bg-primary rounded-xl shadow border p-6">
         <div className="flex items-center justify-between">
@@ -510,7 +516,6 @@ const Apartments = () => {
           // Get actual status from apartment (now synced automatically)
           const actualStatus = apartment.status || 'available';
           const config = getStatusConfig(actualStatus);
-          const tenantCount = getApartmentTenantCount(apartment.id);
 
           return (
             <div key={apartment.id} className={`bg-primary rounded-xl shadow hover:shadow-lg transition-all duration-300 border ${config.borderColor} overflow-hidden`}>

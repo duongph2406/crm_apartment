@@ -3,14 +3,13 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 
 const InvoiceGeneration = () => {
-  const { t } = useLanguage();
   const { 
     data, 
-    addInvoice, 
-    getApartmentTenants, 
-    getApartmentTenantCount, 
+    addInvoice,
+    getApartmentTenants,
+    getApartmentTenantCount,
     getPrimaryTenant,
-    getRoomPrice 
+    getRoomPrice
   } = useApp();
   
   const [selectedMonth, setSelectedMonth] = useState(() => {

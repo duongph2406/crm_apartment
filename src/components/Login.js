@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
-  const { t } = useLanguage();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const { login } = useApp();
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-  });
+  const navigate = useNavigate();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -45,7 +44,7 @@ const Login = () => {
     setError('');
 
     try {
-      const success = await login(formData.username, formData.password);
+      const success = await login(username, password);
       if (!success) {
         setError('Tên đăng nhập hoặc mật khẩu không đúng');
       }
@@ -97,8 +96,8 @@ const Login = () => {
               </label>
               <input
                 type="text"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="input"
                 placeholder="Nhập tên đăng nhập"
                 required
@@ -111,8 +110,8 @@ const Login = () => {
               </label>
               <input
                 type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="input"
                 placeholder="Nhập mật khẩu"
                 required

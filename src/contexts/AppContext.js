@@ -26,13 +26,29 @@ const initialData = {
       rent = 5000000; // Default fallback
     }
     
+    // Set specific room statuses for consistent data
+    let status, currentTenantId;
+    if (room === '102') {
+      status = 'occupied';
+      currentTenantId = '1';
+    } else if (room === '201') {
+      status = 'occupied';
+      currentTenantId = '4';
+    } else if (room === '302') {
+      status = 'maintenance';
+      currentTenantId = null;
+    } else {
+      status = 'available';
+      currentTenantId = null;
+    }
+
     return {
       id: room,
       roomNumber: room,
       size: size,
-      status: room === '102' ? 'occupied' : Math.random() > 0.7 ? 'occupied' : 'available',
+      status: status,
       rent: rent,
-      currentTenantId: room === '102' ? '1' : null, // Link tenant 1 to room 102
+      currentTenantId: currentTenantId,
       description: `Căn hộ ${size}m² tiêu chuẩn`,
     };
   }),
@@ -70,6 +86,17 @@ const initialData = {
       role: 'member',
       status: 'active',
     },
+    {
+      id: '4',
+      fullName: 'Phạm Thu Hương',
+      phone: '0923456789',
+      email: 'phamthuhuong@email.com',
+      idNumber: '789123456',
+      address: '321 Hai Bà Trưng, Q3, TP.HCM',
+      apartmentId: '201',
+      role: 'room_leader',
+      status: 'active',
+    },
   ],
   contracts: [
     {
@@ -79,20 +106,33 @@ const initialData = {
       tenantId: '1',
       signDate: '2024-01-01',
       startDate: '2024-01-01',
-      endDate: '2024-12-31',
+      endDate: '2024-08-31', // Set this to an expired date for testing
       monthlyRent: 6000000,
       deposit: 12000000,
-      status: 'active',
+      status: 'active', // Will be auto-updated to 'expired' by sync function
       createdAt: '2024-01-01T10:00:00.000Z'
+    },
+    {
+      id: '2',
+      contractNumber: 'HĐ002/HĐTCH-2024',
+      apartmentId: '201',
+      tenantId: '4',
+      signDate: '2024-02-01',
+      startDate: '2024-02-01',
+      endDate: '2024-12-31',
+      monthlyRent: 5200000,
+      deposit: 10400000,
+      status: 'active',
+      createdAt: '2024-02-01T10:00:00.000Z'
     },
   ],
   invoices: [
     {
       id: 1,
       invoiceNumber: 'HĐ001',
-      contractId: 1,
-      apartmentId: 1,
-      tenantId: 1,
+      contractId: '1',
+      apartmentId: '102',
+      tenantId: '1',
       month: 7,
       year: 2024,
       rent: 5000000,
@@ -102,17 +142,18 @@ const initialData = {
       cleaning: 50000,
       other: 0,
       otherDescription: '',
-      total: 5550000,
+      amount: 5550000,
       dueDate: '2024-07-15',
+      issueDate: '2024-07-01',
       status: 'paid',
       createdAt: '2024-07-01T00:00:00'
     },
     {
       id: 2,
       invoiceNumber: 'HĐ002',
-      contractId: 1,
-      apartmentId: 1,
-      tenantId: 1,
+      contractId: '1',
+      apartmentId: '102',
+      tenantId: '1',
       month: 8,
       year: 2024,
       rent: 5000000,
@@ -122,9 +163,52 @@ const initialData = {
       cleaning: 50000,
       other: 100000,
       otherDescription: 'Phí bảo trì thang máy',
-      total: 5700000,
+      amount: 5700000,
       dueDate: '2024-08-15',
-      status: 'pending',
+      issueDate: '2024-08-01',
+      status: 'unpaid',
+      createdAt: '2024-08-01T00:00:00'
+    },
+    {
+      id: 3,
+      invoiceNumber: 'HĐ003',
+      contractId: '2',
+      apartmentId: '201',
+      tenantId: '4',
+      month: 7,
+      year: 2024,
+      rent: 5200000,
+      electricity: 180000,
+      water: 100000,
+      internet: 200000,
+      cleaning: 50000,
+      other: 0,
+      otherDescription: '',
+      amount: 5530000,
+      dueDate: '2024-07-15',
+      issueDate: '2024-07-01',
+      status: 'paid',
+      createdAt: '2024-07-01T00:00:00'
+    },
+    {
+      id: 4,
+      invoiceNumber: 'HĐ004',
+      contractId: '2',
+      apartmentId: '201',
+      tenantId: '4',
+      month: 8,
+      year: 2024,
+      rent: 5200000,
+      electricity: 220000,
+      water: 100000,
+      internet: 200000,
+      cleaning: 50000,
+      other: 0,
+      otherDescription: '',
+      amount: 5570000,
+      dueDate: '2024-08-15',
+      issueDate: '2024-08-01',
+      status: 'unpaid',
       createdAt: '2024-08-01T00:00:00'
     },
   ],
@@ -237,9 +321,13 @@ export const AppProvider = ({ children }) => {
         c.apartmentId === apartment.id && c.status === 'active'
       );
       
-      // If no active contract and not in maintenance, set to available
+      // If no active contract and not in maintenance, set to available and clear currentTenantId
       if (!hasActiveContract && apartment.status !== 'maintenance') {
-        return { ...apartment, status: 'available' };
+        return { 
+          ...apartment, 
+          status: 'available',
+          currentTenantId: null  // Clear tenant assignment when no active contract
+        };
       }
       return apartment;
     });
@@ -282,6 +370,11 @@ export const AppProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Function to force sync contract status immediately
+  const forceSyncContractStatus = () => {
+    setData(prevData => syncContractStatus(prevData));
+  };
+
   // Function to check and handle expired contracts (kept for manual use only)
   const checkExpiredContracts = () => {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -311,7 +404,7 @@ export const AppProvider = ({ children }) => {
             contract.apartmentId === apartment.id
           );
           return hasExpiredContract
-            ? { ...apartment, status: 'available' }
+            ? { ...apartment, status: 'available', currentTenantId: null }
             : apartment;
         });
         
@@ -816,6 +909,7 @@ export const AppProvider = ({ children }) => {
     updateRoomPrice,
     getRoomPrice,
     checkExpiredContracts,
+    forceSyncContractStatus,
   };
 
   return (

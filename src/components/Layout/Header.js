@@ -1,27 +1,25 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { useApp } from '../../contexts/AppContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const Header = ({ currentPage, setCurrentPage }) => {
-  const { language, changeLanguage, t } = useLanguage();
   const { currentUser, logout } = useApp();
   const { theme, changeTheme, isDark } = useTheme();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const navigation = [
-    { key: 'home', label: t('home') },
+    { key: 'home', label: 'Trang chủ' },
   ];
 
   // Page titles mapping
   const pageTitles = {
-    'home': t('home'),
-    'apartments': t('apartments'),
-    'tenants': t('tenants'),
-    'contracts': t('contracts'),
-    'invoices': t('invoices'),
-    'account': t('account'),
-    'users': t('accountManagement'),
+    'home': 'Trang chủ',
+    'apartments': 'Quản lý căn hộ',
+    'tenants': 'Quản lý khách thuê',
+    'contracts': 'Hợp đồng',
+    'invoices': 'Hóa đơn',
+    'account': 'Tài khoản',
+    'users': 'Quản lý tài khoản',
     'my-contracts': 'Hợp đồng của tôi',
     'my-invoices': 'Hóa đơn của tôi'
   };
@@ -29,10 +27,10 @@ const Header = ({ currentPage, setCurrentPage }) => {
   // Add navigation items based on role
   if (currentUser?.role === 'admin' || currentUser?.role === 'manager') {
     navigation.push(
-      { key: 'apartments', label: t('apartments') },
-      { key: 'tenants', label: t('tenants') },
-      { key: 'contracts', label: t('contracts') },
-      { key: 'invoices', label: t('invoices') }
+      { key: 'apartments', label: 'Quản lý căn hộ' },
+      { key: 'tenants', label: 'Quản lý khách thuê' },
+      { key: 'contracts', label: 'Hợp đồng' },
+      { key: 'invoices', label: 'Hóa đơn' }
     );
   }
 
@@ -44,10 +42,10 @@ const Header = ({ currentPage, setCurrentPage }) => {
     );
   }
 
-  navigation.push({ key: 'account', label: t('account') });
+  navigation.push({ key: 'account', label: 'Tài khoản' });
 
   if (currentUser?.role === 'admin') {
-    navigation.push({ key: 'users', label: t('accountManagement') });
+    navigation.push({ key: 'users', label: 'Quản lý tài khoản' });
   }
 
   const handleLogout = () => {
@@ -104,16 +102,6 @@ const Header = ({ currentPage, setCurrentPage }) => {
               <option value="system">💻 Hệ thống</option>
             </select>
 
-            {/* Language Selector */}
-            <select
-              value={language}
-              onChange={(e) => changeLanguage(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-secondary text-primary text-sm border border-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="vi">🇻🇳 VI</option>
-              <option value="en">🇺🇸 EN</option>
-            </select>
-
             {/* User Menu */}
             <div className="relative">
               <button
@@ -142,13 +130,13 @@ const Header = ({ currentPage, setCurrentPage }) => {
                     }}
                     className="block w-full text-left px-4 py-2 text-sm text-primary hover-bg-secondary transition-colors"
                   >
-                    {t('account')}
+                    Tài khoản
                   </button>
                   <button
                     onClick={handleLogout}
                     className="block w-full text-left px-4 py-2 text-sm text-primary hover-bg-secondary transition-colors"
                   >
-                    {language === 'vi' ? 'Đăng xuất' : 'Logout'}
+                    Đăng xuất
                   </button>
                 </div>
               )}

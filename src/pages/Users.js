@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
 import Modal from '../components/Modal';
 
 const Users = () => {
-  const { t } = useLanguage();
-  const { data, addUser, updateUser, deleteUser, currentUser } = useApp();
+  const { data, currentUser, addUser, updateUser, deleteUser } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -245,8 +243,6 @@ const Users = () => {
     updateUser(userToToggle.id, { status: newStatus });
     alert(`Tài khoản đã được ${newStatus === 'active' ? 'kích hoạt' : 'vô hiệu hóa'}!`);
   };
-
-
 
   // Get user stats
   const userStats = {

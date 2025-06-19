@@ -4,8 +4,7 @@ import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
 
 const UserDashboard = () => {
-  const { t } = useLanguage();
-  const { data, currentUser } = useApp();
+  const { currentUser, data } = useApp();
 
   // Get tenant information for the current user
   const currentTenant = data.tenants.find(tenant => tenant.id === currentUser?.tenantId);

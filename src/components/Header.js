@@ -5,8 +5,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useApp } from '../contexts/AppContext';
 
 const Header = () => {
-  const { language, changeLanguage, t } = useLanguage();
-  const { theme, changeTheme, isDark } = useTheme();
+  const { t } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
   const { currentUser, logout } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,11 +57,11 @@ const Header = () => {
   // Cycle through theme modes with single button
   const cycleTheme = () => {
     if (theme === 'light') {
-      changeTheme('dark');
+      toggleTheme('dark');
     } else if (theme === 'dark') {
-      changeTheme('system');
+      toggleTheme('system');
     } else {
-      changeTheme('light');
+      toggleTheme('light');
     }
   };
 
@@ -97,8 +97,22 @@ const Header = () => {
     <header className="bg-primary shadow border-b border-primary sticky top-0 z-40">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          {/* Navigation */}
-          <div className="flex items-center space-x-8">            
+          {/* Logo/Brand Name - Left Side */}
+          <div className="flex items-center">
+            <Link to="/" className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-lg">🏢</span>
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-xl font-bold text-primary">Apartment CRM</h1>
+                <p className="text-xs text-secondary">Quản lý chung cư</p>
+              </div>
+            </Link>
+          </div>
+
+          {/* Navigation and Controls - Right Side */}
+          <div className="flex items-center space-x-6">
+            {/* Navigation Menu */}
             <nav className="hidden md:flex space-x-1">
               {navigation.map((item) => (
                 <Link
@@ -114,14 +128,6 @@ const Header = () => {
                 </Link>
               ))}
             </nav>
-          </div>
-
-          {/* Page Title and Controls */}
-          <div className="flex items-center space-x-4">
-            {/* Page Title */}
-            <h1 className="text-lg font-bold text-primary hidden sm:block">
-              {getCurrentPageTitle()}
-            </h1>
 
             {/* Theme Toggle */}
             <button
@@ -130,32 +136,8 @@ const Header = () => {
               title={`Chế độ: ${getThemeLabel()}`}
             >
               {getThemeIcon()}
-              <span className="hidden sm:block text-xs">{getThemeLabel()}</span>
+              <span className="hidden lg:block text-xs">{getThemeLabel()}</span>
             </button>
-
-            {/* Language Switcher */}
-            <div className="flex items-center bg-tertiary rounded-lg p-1">
-              <button
-                onClick={() => changeLanguage('vi')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                  language === 'vi'
-                    ? 'bg-primary text-inverse shadow-sm'
-                    : 'text-secondary hover-bg-secondary'
-                }`}
-              >
-                VI
-              </button>
-              <button
-                onClick={() => changeLanguage('en')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                  language === 'en'
-                    ? 'bg-primary text-inverse shadow-sm'
-                    : 'text-secondary hover-bg-secondary'
-                }`}
-              >
-                EN
-              </button>
-            </div>
 
             {/* Mobile Menu Button */}
             <button
@@ -176,7 +158,7 @@ const Header = () => {
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-inverse text-sm font-semibold shadow-sm">
                   {currentUser?.fullName?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
-                <span className="hidden sm:block text-sm font-medium">{currentUser?.fullName}</span>
+                <span className="hidden lg:block text-sm font-medium">{currentUser?.fullName}</span>
                 <svg className={`w-4 h-4 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -266,8 +248,16 @@ const Header = () => {
         <div className="md:hidden border-t border-primary bg-secondary">
           <div className="px-4 py-3 space-y-1">
             {/* Mobile Page Title */}
-            <div className="px-3 py-2 text-sm font-bold text-primary border-b border-primary mb-2">
-              {getCurrentPageTitle()}
+            <div className="px-3 py-2 text-sm font-bold text-primary border-b border-primary mb-2 flex items-center justify-between">
+              <span>{getCurrentPageTitle()}</span>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1 rounded text-secondary hover:text-primary"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
             
             {navigation.map((item) => (

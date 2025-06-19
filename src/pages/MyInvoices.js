@@ -5,17 +5,13 @@ import { useApp } from '../contexts/AppContext';
 const MyInvoices = () => {
   const { t } = useLanguage();
   const { data, currentUser } = useApp();
-  const [filter, setFilter] = useState('all');
-
-  // Get tenant information and invoices for the current user
-  const currentTenant = data.tenants.find(tenant => tenant.id === currentUser?.tenantId);
-  const userInvoices = currentTenant 
-    ? data.invoices.filter(invoice => invoice.tenantId === currentTenant.id)
-    : [];
-
-  const filteredInvoices = userInvoices.filter(invoice => {
-    if (filter === 'all') return true;
-    return invoice.status === filter;
+  
+  const [viewingInvoice, setViewingInvoice] = useState(null);
+  
+  // Get invoices for current tenant
+  const myInvoices = data.invoices.filter(invoice => {
+    const tenant = data.tenants.find(t => t.id === invoice.tenantId);
+    return tenant && tenant.phone === currentUser.phone;
   });
 
   const formatCurrency = (amount) => {
@@ -74,7 +70,7 @@ const MyInvoices = () => {
           Tính năng xem hóa đơn cho khách thuê đang được phát triển...
         </p>
         <p className="text-sm text-gray-500 mt-2">
-          Tổng số hóa đơn: {userInvoices.length}
+          Tổng số hóa đơn: {myInvoices.length}
         </p>
       </div>
     </div>

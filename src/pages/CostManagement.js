@@ -3,8 +3,13 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 
 const CostManagement = () => {
-  const { t } = useLanguage();
-  const { data, updateCostSettings, updateRoomPrice, getRoomPrice } = useApp();
+  const { 
+    data, 
+    currentUser,
+    updateCostSettings,
+    updateRoomPrice,
+    getRoomPrice
+  } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('general'); // general, room-prices
   const [costData, setCostData] = useState(

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
-import Modal from '../components/Modal';
+import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Account = () => {
-  const { t, language, changeLanguage } = useLanguage();
   const { theme, changeTheme } = useTheme();
   const { data, updateUser, currentUser, logout } = useApp();
   const [activeTab, setActiveTab] = useState('profile');
@@ -30,6 +29,7 @@ const Account = () => {
     contractReminders: true,
     maintenanceAlerts: true
   });
+  const { language, changeLanguage } = useLanguage();
 
   // Update profileData when currentUser changes
   useEffect(() => {
@@ -506,32 +506,6 @@ const Account = () => {
               <h3 className="text-lg font-semibold text-primary">Tùy chọn giao diện</h3>
               
               <div className="space-y-4">
-                <div className="p-4 bg-secondary rounded-lg">
-                  <h4 className="font-medium text-primary mb-3">Ngôn ngữ</h4>
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => changeLanguage('vi')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        language === 'vi'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-tertiary text-secondary hover:bg-primary'
-                      }`}
-                    >
-                      🇻🇳 Tiếng Việt
-                    </button>
-                    <button
-                      onClick={() => changeLanguage('en')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        language === 'en'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-tertiary text-secondary hover:bg-primary'
-                      }`}
-                    >
-                      🇺🇸 English
-                    </button>
-                  </div>
-                </div>
-
                 <div className="p-4 bg-secondary rounded-lg">
                   <h4 className="font-medium text-primary mb-3">Giao diện</h4>
                   <div className="flex space-x-3">
