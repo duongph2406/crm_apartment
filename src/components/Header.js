@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useApp } from '../contexts/AppContext';
 
 const Header = () => {
   const { language, changeLanguage, t } = useLanguage();
   const { theme, changeTheme, isDark } = useTheme();
-  const { user, logout } = useAuth();
+  const { currentUser, logout } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -18,7 +18,7 @@ const Header = () => {
   ];
 
   // Add navigation items based on role
-  if (user?.role === 'admin' || user?.role === 'manager') {
+  if (currentUser?.role === 'admin' || currentUser?.role === 'manager') {
     navigation.push(
       { key: 'apartments', label: t('apartments'), path: '/apartments' },
       { key: 'tenants', label: t('tenants'), path: '/tenants' },
@@ -32,7 +32,7 @@ const Header = () => {
   }
 
   // User (tenant) can only see their own contracts and invoices
-  if (user?.role === 'user') {
+  if (currentUser?.role === 'user') {
     navigation.push(
       { key: 'my-contracts', label: 'Hợp đồng của tôi', path: '/my-contracts' },
       { key: 'my-invoices', label: 'Hóa đơn của tôi', path: '/my-invoices' }
@@ -174,9 +174,9 @@ const Header = () => {
                 className="flex items-center space-x-2 p-2 rounded-lg text-secondary hover-bg-tertiary transition-all"
               >
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-inverse text-sm font-semibold shadow-sm">
-                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                  {currentUser?.fullName?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
-                <span className="hidden sm:block text-sm font-medium">{user?.name}</span>
+                <span className="hidden sm:block text-sm font-medium">{currentUser?.fullName}</span>
                 <svg className={`w-4 h-4 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -185,14 +185,14 @@ const Header = () => {
               {isUserMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-primary rounded-xl shadow-xl border border-primary py-2 z-50 animate-fade-in">
                   <div className="px-4 py-3 border-b border-primary">
-                    <p className="text-sm font-medium text-primary">{user?.name}</p>
-                    <p className="text-xs text-secondary">{user?.email}</p>
+                    <p className="text-sm font-medium text-primary">{currentUser?.fullName}</p>
+                    <p className="text-xs text-secondary">{currentUser?.email}</p>
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
-                      user?.role === 'admin' ? 'badge-purple' :
-                      user?.role === 'manager' ? 'badge-primary' : 'badge-success'
+                      currentUser?.role === 'admin' ? 'badge-purple' :
+                      currentUser?.role === 'manager' ? 'badge-primary' : 'badge-success'
                     }`}>
-                      {user?.role === 'admin' ? '👑 Quản trị viên' :
-                       user?.role === 'manager' ? '👨‍💼 Quản lý' : '👤 Khách thuê'}
+                      {currentUser?.role === 'admin' ? '👑 Quản trị viên' :
+                       currentUser?.role === 'manager' ? '👨‍💼 Quản lý' : '👤 Khách thuê'}
                     </span>
                   </div>
                   
@@ -214,7 +214,7 @@ const Header = () => {
                     </Link>
 
                     {/* User Management - Admin can manage manager + user, Manager can manage user */}
-                    {(user?.role === 'admin' || user?.role === 'manager') && (
+                    {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
                       <Link
                         to="/users"
                         onClick={() => setIsUserMenuOpen(false)}
@@ -228,12 +228,12 @@ const Header = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                         </svg>
                         {t('accountManagement')}
-                        {user?.role === 'admin' && (
+                        {currentUser?.role === 'admin' && (
                           <span className="ml-auto text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
                             Admin
                           </span>
                         )}
-                        {user?.role === 'manager' && (
+                        {currentUser?.role === 'manager' && (
                           <span className="ml-auto text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
                             Manager
                           </span>
@@ -299,7 +299,7 @@ const Header = () => {
                 {t('account')}
               </Link>
               
-              {(user?.role === 'admin' || user?.role === 'manager') && (
+              {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
                 <Link
                   to="/users"
                   onClick={() => setIsMobileMenuOpen(false)}

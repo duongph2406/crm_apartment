@@ -47,7 +47,10 @@ const Tenants = () => {
     phone: '',
     email: '',
     idNumber: '',
-    address: '',
+    idIssueDate: '',
+    idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+    hometown: '',
+    permanentAddress: '',
     status: 'active',
   });
 
@@ -57,7 +60,10 @@ const Tenants = () => {
       phone: '',
       email: '',
       idNumber: '',
-      address: '',
+      idIssueDate: '',
+      idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+      hometown: '',
+      permanentAddress: '',
       status: 'active',
     });
   };
@@ -127,11 +133,47 @@ const Tenants = () => {
   };
 
   const handleAddTenant = () => {
-    if (formData.fullName && formData.phone) {
-      const newTenant = addTenant(formData);
-      resetFormData();
-      setIsAddModalOpen(false);
+    // Validate required fields
+    if (!formData.fullName || !formData.phone || !formData.idNumber || 
+        !formData.idIssueDate || !formData.idIssuePlace || 
+        !formData.hometown || !formData.permanentAddress) {
+      alert('Vui lòng điền đầy đủ tất cả các trường bắt buộc!');
+      return;
     }
+    
+    // Validate phone number (10 digits)
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      alert('Số điện thoại phải có đúng 10 chữ số!');
+      return;
+    }
+    
+    // Validate email format if provided
+    if (formData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        alert('Email không đúng định dạng!');
+        return;
+      }
+    }
+    
+    // Validate ID number (12 digits for CCCD)
+    const idRegex = /^[0-9]{12}$/;
+    if (!idRegex.test(formData.idNumber)) {
+      alert('Số CCCD phải có đúng 12 chữ số!');
+      return;
+    }
+    
+    // Check for duplicate ID number
+    const duplicateTenant = data.tenants.find(t => t.idNumber === formData.idNumber);
+    if (duplicateTenant) {
+      alert(`Số CCCD ${formData.idNumber} đã tồn tại trong hệ thống!\n\nKhách thuê: ${duplicateTenant.fullName}\nSố điện thoại: ${duplicateTenant.phone}`);
+      return;
+    }
+    
+    const newTenant = addTenant(formData);
+    resetFormData();
+    setIsAddModalOpen(false);
   };
 
   const handleEditTenant = (tenant) => {
@@ -141,12 +183,39 @@ const Tenants = () => {
   };
 
   const handleUpdateTenant = () => {
-    if (formData.fullName && formData.phone) {
-      updateTenant(selectedTenant.id, formData);
-      resetFormData();
-      setIsEditModalOpen(false);
-      setSelectedTenant(null);
+    // Only validate editable fields when updating
+    if (!formData.phone) {
+      alert('Vui lòng nhập số điện thoại!');
+      return;
     }
+    
+    if (!formData.idIssueDate || !formData.idIssuePlace) {
+      alert('Vui lòng điền đầy đủ thông tin ngày cấp và nơi cấp CCCD!');
+      return;
+    }
+    
+    // Validate phone number (10 digits)
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      alert('Số điện thoại phải có đúng 10 chữ số!');
+      return;
+    }
+    
+    // Validate email format if provided
+    if (formData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        alert('Email không đúng định dạng!');
+        return;
+      }
+    }
+    
+    // Skip ID validation since it's not editable in update mode
+    
+    updateTenant(selectedTenant.id, formData);
+    resetFormData();
+    setIsEditModalOpen(false);
+    setSelectedTenant(null);
   };
 
 
@@ -175,73 +244,156 @@ const Tenants = () => {
 
 
 
-  const TenantForm = ({ onSubmit, submitText }) => (
+  const TenantForm = ({ onSubmit, submitText, isEditing = false }) => (
     <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('fullName')} *
-        </label>
-        <input
-          type="text"
-          value={formData.fullName}
-          onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-          className="input"
-          placeholder="Nhập họ và tên"
-          required
-        />
+      {/* Edit Mode Notice */}
+      {isEditing && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start space-x-2">
+            <span className="text-yellow-600">⚠️</span>
+            <div className="text-sm text-yellow-800">
+              <p className="font-medium mb-1">Lưu ý khi chỉnh sửa:</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>Không thể sửa: Họ tên, Số CCCD, Quê quán, Nơi thường trú</li>
+                <li>Có thể sửa: Số điện thoại, Email, Ngày cấp CCCD, Nơi cấp CCCD, Trạng thái</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Basic Information */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Họ và tên *
+          </label>
+          <input
+            type="text"
+            value={formData.fullName}
+            onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+            className={`input ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+            placeholder="Nhập họ và tên đầy đủ"
+            required
+            disabled={isEditing}
+            title={isEditing ? "Không thể thay đổi họ tên" : ""}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Số điện thoại *
+          </label>
+          <input
+            type="tel"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            className="input"
+            placeholder="0901234567"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Email
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            className="input"
+            placeholder="email@example.com"
+          />
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('phone')} *
-        </label>
-        <input
-          type="tel"
-          value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-          className="input"
-          placeholder="0901234567"
-          required
-        />
+      {/* ID Information */}
+      <div className="border-t pt-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Thông tin CCCD/CMND</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Số CCCD *
+            </label>
+            <input
+              type="text"
+              value={formData.idNumber}
+              onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+              className={`input ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              placeholder="001234567890"
+              maxLength="12"
+              required
+              disabled={isEditing}
+              title={isEditing ? "Không thể thay đổi số CCCD" : ""}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ngày cấp *
+            </label>
+            <input
+              type="date"
+              value={formData.idIssueDate}
+              onChange={(e) => setFormData({ ...formData, idIssueDate: e.target.value })}
+              className="input"
+              required
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nơi cấp *
+            </label>
+            <input
+              type="text"
+              value={formData.idIssuePlace}
+              onChange={(e) => setFormData({ ...formData, idIssuePlace: e.target.value })}
+              className="input"
+              placeholder="Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội"
+              required
+            />
+          </div>
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('email')}
-        </label>
-        <input
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          className="input"
-          placeholder="email@example.com"
-        />
-      </div>
+      {/* Address Information */}
+      <div className="border-t pt-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Thông tin địa chỉ</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quê quán *
+            </label>
+            <input
+              type="text"
+              value={formData.hometown}
+              onChange={(e) => setFormData({ ...formData, hometown: e.target.value })}
+              className={`input ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              placeholder="Xã/Phường, Quận/Huyện, Tỉnh/Thành phố"
+              required
+              disabled={isEditing}
+              title={isEditing ? "Không thể thay đổi quê quán" : ""}
+            />
+          </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('idNumber')}
-        </label>
-        <input
-          type="text"
-          value={formData.idNumber}
-          onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
-          className="input"
-          placeholder="123456789"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('address')}
-        </label>
-        <textarea
-          value={formData.address}
-          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-          className="input"
-          rows="3"
-          placeholder="Địa chỉ thường trú"
-        />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nơi thường trú *
+            </label>
+            <textarea
+              value={formData.permanentAddress}
+              onChange={(e) => setFormData({ ...formData, permanentAddress: e.target.value })}
+              className={`input ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              rows="2"
+              placeholder="Số nhà, Đường/Phố, Xã/Phường, Quận/Huyện, Tỉnh/Thành phố"
+              required
+              disabled={isEditing}
+              title={isEditing ? "Không thể thay đổi nơi thường trú" : ""}
+            />
+          </div>
+        </div>
       </div>
 
       <div>
@@ -354,11 +506,18 @@ const Tenants = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredTenants.map((tenant) => {
           const apartment = tenant.apartmentId ? data.apartments.find(apt => apt.id === tenant.apartmentId) : null;
+          // Find contract where this tenant is the main tenant or in members
           const contract = data.contracts.find(c => 
-            c.members && c.members.some(m => m.tenantId === tenant.id) && c.status === 'active'
+            c.status === 'active' && (
+              c.tenantId === tenant.id || 
+              (c.members && c.members.some(m => m.id === tenant.id))
+            )
           );
-          const memberInfo = contract?.members?.find(m => m.tenantId === tenant.id);
-          const config = memberInfo?.role ? roleConfig[memberInfo.role] : roleConfig.member;
+          
+          // Always use role from tenant data as the source of truth
+          const tenantRole = tenant.role || 'member';
+          
+          const config = roleConfig[tenantRole] || roleConfig.member;
           
           return (
             <div key={tenant.id} className={`bg-white rounded-xl shadow-sm border hover:shadow-md transition-all`}>
@@ -407,34 +566,46 @@ const Tenants = () => {
                 </div>
 
                 {/* Contract and Room Info */}
-                {contract && apartment ? (
+                {contract || apartment ? (
                   <div className="space-y-3">
-                    <div className="bg-blue-50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-blue-900">
-                          Hợp đồng {contract.contractNumber}
+                    {contract && (
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-blue-900">
+                            Hợp đồng {contract.contractNumber}
+                          </p>
+                          <span className={`text-xs px-2 py-1 rounded-full ${config.bg} ${config.color} font-medium`}>
+                            {config.icon} {config.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-blue-600">
+                          {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
                         </p>
-                        <span className={`text-xs px-2 py-1 rounded-full ${config.bg} ${config.color} font-medium`}>
-                          {config.icon} {config.label}
-                        </span>
                       </div>
-                      <p className="text-xs text-blue-600">
-                        {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
-                      </p>
-                    </div>
+                    )}
                     
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-sm font-medium text-gray-700">
-                        Phòng {apartment.roomNumber}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {getApartmentTenantCount(apartment.id)} người ở
-                      </p>
-                    </div>
+                    {apartment && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-sm font-medium text-gray-700">
+                          Phòng {apartment.roomNumber}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {getApartmentTenantCount(apartment.id)} người ở
+                        </p>
+                      </div>
+                    )}
+                    
+                    {!contract && apartment && (
+                      <div className="bg-yellow-50 rounded-lg p-3">
+                        <p className="text-xs text-yellow-700">
+                          ⚠️ Khách thuê trong phòng nhưng chưa có hợp đồng
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-gray-50 rounded-lg p-3 text-center">
-                    <p className="text-sm text-gray-500">Chưa có hợp đồng</p>
+                    <p className="text-sm text-gray-500">Chưa có hợp đồng và chưa được phân phòng</p>
                   </div>
                 )}
 
@@ -512,6 +683,7 @@ const Tenants = () => {
         <TenantForm 
           onSubmit={handleAddTenant}
           submitText="Thêm khách thuê"
+          isEditing={false}
         />
       </Modal>
 
@@ -550,6 +722,7 @@ const Tenants = () => {
         <TenantForm 
           onSubmit={handleUpdateTenant}
           submitText="Cập nhật"
+          isEditing={true}
         />
       </Modal>
 

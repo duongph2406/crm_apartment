@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useApp } from '../contexts/AppContext';
 
 const Login = () => {
   const { t } = useLanguage();
-  const { login } = useAuth();
+  const { login } = useApp();
   const [formData, setFormData] = useState({
     username: '',
     password: '',

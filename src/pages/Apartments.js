@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
+
+
 
 const Apartments = () => {
   const { t } = useLanguage();
@@ -41,7 +43,14 @@ const Apartments = () => {
     size: '',
     description: '',
     status: '',
+    maintenanceReason: '',
   });
+  
+  // Refs for form inputs to prevent focus loss
+  const roomNumberRef = useRef(null);
+  const sizeRef = useRef(null);
+  const descriptionRef = useRef(null);
+  const maintenanceReasonRef = useRef(null);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -98,18 +107,17 @@ const Apartments = () => {
 
   const filteredApartments = data.apartments.filter(apt => {
     if (filter === 'all') return true;
-    const tenantCount = getApartmentTenantCount(apt.id);
-    const actualStatus = tenantCount > 0 ? 'occupied' : (apt.status || 'available');
-    return actualStatus === filter;
+    return apt.status === filter;
   });
 
   const handleEditApartment = (apartment) => {
     setSelectedApartment(apartment);
     setFormData({
-      roomNumber: apartment.roomNumber,
-      size: apartment.size,
-      description: apartment.description,
-      status: apartment.status,
+      roomNumber: apartment.roomNumber || '',
+      size: apartment.size ? apartment.size.toString() : '',
+      description: apartment.description || '',
+      status: apartment.status || 'available',
+      maintenanceReason: apartment.maintenanceReason || '',
     });
     setIsEditModalOpen(true);
   };
@@ -125,24 +133,78 @@ const Apartments = () => {
   const EditApartmentModal = () => {
     if (!selectedApartment) return null;
 
+    // Check if apartment has active contract
+    const hasActiveContract = data.contracts.some(contract => 
+      contract.apartmentId === selectedApartment.id && 
+      contract.status === 'active'
+    );
+    
+    // Get current status
+    const currentActualStatus = selectedApartment.status || 'available';
+
     const handleSave = () => {
-      // Check if changing to available and apartment has tenants
-      if (formData.status === 'available' && getApartmentTenantCount(selectedApartment.id) > 0) {
-        setIsConfirmModalOpen(true);
+      // Get values from refs
+      const currentValues = {
+        roomNumber: roomNumberRef.current?.value || formData.roomNumber,
+        size: sizeRef.current?.value || formData.size,
+        description: descriptionRef.current?.value || formData.description,
+        status: formData.status,
+        maintenanceReason: maintenanceReasonRef.current?.value || formData.maintenanceReason
+      };
+      
+      // Validate maintenance reason if status is maintenance
+      if (currentValues.status === 'maintenance' && !currentValues.maintenanceReason.trim()) {
+        alert('Vui lòng nhập lý do bảo trì!');
         return;
       }
       
-      updateApartment(selectedApartment.id, formData);
+      // Only save changes that are allowed
+      const allowedChanges = {
+        roomNumber: currentValues.roomNumber,
+        size: parseFloat(currentValues.size) || 0,
+        description: currentValues.description
+      };
+      
+      // If room has no active contract, allow changing status
+      if (!hasActiveContract) {
+        allowedChanges.status = currentValues.status;
+        // If status is maintenance, save the reason
+        if (currentValues.status === 'maintenance') {
+          allowedChanges.maintenanceReason = currentValues.maintenanceReason.trim();
+        } else {
+          // Clear maintenance reason if not in maintenance
+          allowedChanges.maintenanceReason = '';
+        }
+      }
+      
+      updateApartment(selectedApartment.id, allowedChanges);
       setIsEditModalOpen(false);
       setSelectedApartment(null);
+      // Reset form data
+      setFormData({
+        roomNumber: '',
+        size: '',
+        description: '',
+        status: '',
+        maintenanceReason: '',
+      });
     };
 
     return (
       <Modal
+        key={selectedApartment.id}
         isOpen={isEditModalOpen}
         onClose={() => {
           setIsEditModalOpen(false);
           setSelectedApartment(null);
+          // Reset form data
+          setFormData({
+            roomNumber: '',
+            size: '',
+            description: '',
+            status: '',
+            maintenanceReason: '',
+          });
         }}
         title={`Chỉnh sửa phòng ${selectedApartment.roomNumber}`}
         size="lg"
@@ -152,6 +214,14 @@ const Apartments = () => {
               onClick={() => {
                 setIsEditModalOpen(false);
                 setSelectedApartment(null);
+                // Reset form data
+                setFormData({
+                  roomNumber: '',
+                  size: '',
+                  description: '',
+                  status: '',
+                  maintenanceReason: '',
+                });
               }}
               className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
@@ -167,14 +237,34 @@ const Apartments = () => {
         }
       >
         <div className="space-y-4">
+          {/* Warning message if room has active contract */}
+          {hasActiveContract && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start space-x-2">
+                <span className="text-yellow-600">⚠️</span>
+                <div className="text-sm text-yellow-800">
+                  <p className="font-medium mb-1">Phòng đang có hợp đồng hiệu lực</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Trạng thái phòng được quản lý tự động bởi hợp đồng</li>
+                    <li>Giá thuê được đồng bộ từ hợp đồng hiện tại</li>
+                    <li>Không thể thay đổi trạng thái phòng trong thời gian hợp đồng</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Số phòng
             </label>
             <input
+              ref={roomNumberRef}
               type="text"
-              value={formData.roomNumber}
-              onChange={(e) => setFormData({ ...formData, roomNumber: e.target.value })}
+              defaultValue={formData.roomNumber}
+              onChange={(e) => {
+                formData.roomNumber = e.target.value;
+              }}
               className="input"
               placeholder="102"
             />
@@ -185,9 +275,12 @@ const Apartments = () => {
               Diện tích (m²)
             </label>
             <input
+              ref={sizeRef}
               type="number"
-              value={formData.size}
-              onChange={(e) => setFormData({ ...formData, size: parseFloat(e.target.value) })}
+              defaultValue={formData.size}
+              onChange={(e) => {
+                formData.size = e.target.value;
+              }}
               className="input"
               placeholder="25"
             />
@@ -198,8 +291,11 @@ const Apartments = () => {
               Mô tả
             </label>
             <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              ref={descriptionRef}
+              defaultValue={formData.description}
+              onChange={(e) => {
+                formData.description = e.target.value;
+              }}
               className="input"
               rows="3"
               placeholder="Mô tả về phòng..."
@@ -210,25 +306,70 @@ const Apartments = () => {
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Trạng thái
             </label>
-            <div className="space-y-2">
-              {statusConfig.map(([status, config]) => (
-                <label key={status} className="flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="radio"
-                    name="status"
-                    value={status}
-                    checked={formData.status === status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="mr-3"
-                  />
-                  <span className="text-2xl mr-3">{config.icon}</span>
+            
+            {/* Show current status if room has contract */}
+            {hasActiveContract ? (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center space-x-3">
+                  <span className="text-2xl">🏠</span>
                   <div>
-                    <p className="font-medium text-gray-900">{config.label}</p>
-                    <p className="text-sm text-gray-500">{config.description}</p>
+                    <p className="font-medium text-gray-900">Đã thuê</p>
+                    <p className="text-sm text-gray-500">Trạng thái được quản lý bởi hợp đồng</p>
                   </div>
-                </label>
-              ))}
-            </div>
+                </div>
+              </div>
+            ) : (
+              // Room has no contract, allow changing between available and maintenance
+              <div className="space-y-2">
+                <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                  <p className="text-sm text-blue-800">
+                    💡 Phòng không có hợp đồng, bạn có thể chuyển giữa trạng thái trống và bảo trì
+                  </p>
+                </div>
+                {[
+                  ['available', { icon: '🔑', label: 'Trống', description: 'Sẵn sàng cho thuê' }],
+                  ['maintenance', { icon: '🔧', label: 'Bảo trì', description: 'Đang sửa chữa' }]
+                ].map(([status, config]) => (
+                  <label key={status} className="flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="status"
+                      value={status}
+                      checked={formData.status === status}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setFormData(prev => ({ ...prev, status: newValue }));
+                      }}
+                      className="mr-3"
+                    />
+                    <span className="text-2xl mr-3">{config.icon}</span>
+                    <div>
+                      <p className="font-medium text-gray-900">{config.label}</p>
+                      <p className="text-sm text-gray-500">{config.description}</p>
+                    </div>
+                  </label>
+                ))}
+                
+                {/* Maintenance reason input */}
+                {formData.status === 'maintenance' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Lý do bảo trì <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      ref={maintenanceReasonRef}
+                      defaultValue={formData.maintenanceReason || ''}
+                      onChange={(e) => {
+                        formData.maintenanceReason = e.target.value;
+                      }}
+                      className="input w-full"
+                      rows="3"
+                      placeholder="Nhập lý do bảo trì (ví dụ: Sửa điều hòa, thay cửa sổ, sơn lại tường...)"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Modal>
@@ -329,19 +470,13 @@ const Apartments = () => {
             { 
               key: 'available', 
               label: 'Trống', 
-              count: data.apartments.filter(a => {
-                const tenantCount = getApartmentTenantCount(a.id);
-                return tenantCount === 0;
-              }).length, 
+              count: data.apartments.filter(a => a.status === 'available').length, 
               color: 'bg-blue-500' 
             },
             { 
               key: 'occupied', 
               label: 'Đã thuê', 
-              count: data.apartments.filter(a => {
-                const tenantCount = getApartmentTenantCount(a.id);
-                return tenantCount > 0;
-              }).length, 
+              count: data.apartments.filter(a => a.status === 'occupied').length, 
               color: 'bg-green-500' 
             },
             { 
@@ -372,10 +507,10 @@ const Apartments = () => {
       {/* Apartments Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredApartments.map((apartment) => {
-          // Calculate actual status based on tenant count
-          const tenantCount = getApartmentTenantCount(apartment.id);
-          const actualStatus = tenantCount > 0 ? 'occupied' : (apartment.status || 'available');
+          // Get actual status from apartment (now synced automatically)
+          const actualStatus = apartment.status || 'available';
           const config = getStatusConfig(actualStatus);
+          const tenantCount = getApartmentTenantCount(apartment.id);
 
           return (
             <div key={apartment.id} className={`bg-primary rounded-xl shadow hover:shadow-lg transition-all duration-300 border ${config.borderColor} overflow-hidden`}>
@@ -471,6 +606,16 @@ const Apartments = () => {
                         );
                       }
                     })()}
+                  </div>
+                ) : actualStatus === 'maintenance' && apartment.maintenanceReason ? (
+                  <div className="bg-orange-50 rounded-lg p-4">
+                    <div className="flex items-start space-x-2">
+                      <span className="text-orange-500 text-lg">🔧</span>
+                      <div className="flex-1">
+                        <p className="font-medium text-orange-900 mb-1">Đang bảo trì</p>
+                        <p className="text-sm text-orange-700">{apartment.maintenanceReason}</p>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-gray-50 rounded-lg p-4 text-center">

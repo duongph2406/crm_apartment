@@ -13,6 +13,19 @@ const Header = ({ currentPage, setCurrentPage }) => {
     { key: 'home', label: t('home') },
   ];
 
+  // Page titles mapping
+  const pageTitles = {
+    'home': t('home'),
+    'apartments': t('apartments'),
+    'tenants': t('tenants'),
+    'contracts': t('contracts'),
+    'invoices': t('invoices'),
+    'account': t('account'),
+    'users': t('accountManagement'),
+    'my-contracts': 'Hợp đồng của tôi',
+    'my-invoices': 'Hóa đơn của tôi'
+  };
+
   // Add navigation items based on role
   if (currentUser?.role === 'admin' || currentUser?.role === 'manager') {
     navigation.push(
@@ -51,17 +64,18 @@ const Header = ({ currentPage, setCurrentPage }) => {
 
   return (
     <header className="bg-primary shadow-sm border-b border-primary">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo and Navigation */}
-          <div className="flex items-center space-x-8">
-            <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-primary">
-                Apartment CRM
-              </h1>
-            </div>
-            
-            <nav className="hidden md:flex space-x-4">
+      <div className="flex justify-between items-center h-16 px-4 sm:px-6 lg:px-8">
+        {/* Current Page Title */}
+        <div className="flex-shrink-0">
+          <h1 className="text-xl font-bold text-primary">
+            {pageTitles[currentPage] || currentPage}
+          </h1>
+        </div>
+
+          {/* Right side - Navigation and Controls */}
+          <div className="flex items-center space-x-6">
+            {/* Navigation */}
+            <nav className="hidden md:flex space-x-2">
               {navigation.map((item) => (
                 <button
                   key={item.key}
@@ -76,10 +90,9 @@ const Header = ({ currentPage, setCurrentPage }) => {
                 </button>
               ))}
             </nav>
-          </div>
 
-          {/* Theme, Language switcher and User menu */}
-          <div className="flex items-center space-x-3">
+            {/* Theme, Language switcher and User menu */}
+            <div className="flex items-center space-x-3 border-l border-primary pl-6">
             {/* Theme Selector */}
             <select
               value={theme}

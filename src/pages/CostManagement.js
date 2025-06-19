@@ -388,7 +388,7 @@ const CostManagement = () => {
                     const price = prompt('Nhập giá thuê cho tất cả phòng (VNĐ):', '6000000');
                     if (price && !isNaN(price)) {
                       const newPrices = {};
-                      data.apartments.forEach(apt => {
+                      (data.apartments || []).forEach(apt => {
                         newPrices[apt.id] = parseInt(price);
                       });
                       setRoomPricesData(newPrices);
@@ -407,7 +407,7 @@ const CostManagement = () => {
 
           {/* Room Prices Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {data.apartments.map((apartment) => {
+            {(data.apartments || []).map((apartment) => {
               const customPrice = getRoomPrice(apartment.id);
               const defaultPrice = apartment.rent || 0;
               const isCustom = data.roomPrices[apartment.id] !== undefined;
@@ -511,7 +511,7 @@ const CostManagement = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-muted rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-blue-600 mb-1">
-                  {data.apartments.length}
+                  {(data.apartments || []).length}
                 </div>
                 <p className="text-sm text-secondary">Tổng số phòng</p>
               </div>
@@ -526,7 +526,7 @@ const CostManagement = () => {
               <div className="bg-muted rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-purple-600 mb-1">
                   {formatCurrency(
-                    data.apartments.reduce((total, apt) => 
+                    (data.apartments || []).reduce((total, apt) => 
                       total + getRoomPrice(apt.id), 0
                     )
                   )}

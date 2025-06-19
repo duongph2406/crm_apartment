@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
+import Modal from '../components/Modal';
 
 const Users = () => {
   const { t } = useLanguage();
-  const { user } = useAuth();
-  const { data } = useApp();
+  const { data, addUser, updateUser, deleteUser, currentUser } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [viewingUser, setViewingUser] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Handle ESC key
   useEffect(() => {
@@ -31,65 +31,32 @@ const Users = () => {
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isModalOpen, viewingUser]);
 
-  // Mock users data - in real app this would come from backend
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      username: 'admin',
-      name: 'Administrator',
-      email: 'admin@crm.com',
-      role: 'admin',
-      status: 'active',
-      lastLogin: '2024-01-15T10:30:00',
-      createdAt: '2024-01-01T00:00:00',
-      permissions: ['all']
-    },
-    {
-      id: 2,
-      username: 'manager',
-      name: 'Manager',
-      email: 'manager@crm.com',
-      role: 'manager',
-      status: 'active',
-      lastLogin: '2024-01-15T09:15:00',
-      createdAt: '2024-01-02T00:00:00',
-      permissions: ['apartments', 'tenants', 'contracts', 'invoices']
-    },
-    {
-      id: 3,
-      username: 'user',
-      name: 'Nguyễn Văn An',
-      email: 'nguyenvanan@email.com',
-      role: 'user',
-      status: 'active',
-      lastLogin: '2024-01-14T20:45:00',
-      createdAt: '2024-01-10T00:00:00',
-      tenantId: 1,
-      permissions: ['my-contracts', 'my-invoices']
-    }
-  ]);
+  // Get users from AppContext
+  const users = data.users || [];
 
   const [formData, setFormData] = useState({
     username: '',
-    name: '',
+    fullName: '',
     email: '',
     role: 'user',
     status: 'active',
     password: '',
+    confirmPassword: '',
     tenantId: ''
   });
 
   // Filter users based on permission: Admin sees all, Manager only sees users
   const filteredUsers = users.filter(userItem => {
     // Permission check: Manager can only see 'user' role
-    if (user.role === 'manager' && userItem.role !== 'user') {
+    if (currentUser?.role === 'manager' && userItem.role !== 'user') {
       return false;
     }
     
     const matchesSearch = 
       userItem.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      userItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      userItem.email.toLowerCase().includes(searchTerm.toLowerCase());
+      userItem.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (userItem.email && userItem.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (userItem.phone && userItem.phone.includes(searchTerm));
     
     const matchesRole = roleFilter === 'all' || userItem.role === roleFilter;
     const matchesStatus = statusFilter === 'all' || userItem.status === statusFilter;
@@ -99,7 +66,7 @@ const Users = () => {
 
   const openModal = (userToEdit = null) => {
     // Check permission: Manager can only edit users
-    if (userToEdit && user.role === 'manager' && userToEdit.role !== 'user') {
+    if (userToEdit && currentUser?.role === 'manager' && userToEdit.role !== 'user') {
       alert('Bạn không có quyền chỉnh sửa tài khoản này!');
       return;
     }
@@ -108,25 +75,30 @@ const Users = () => {
       setEditingUser(userToEdit);
       setFormData({
         username: userToEdit.username,
-        name: userToEdit.name,
-        email: userToEdit.email,
+        fullName: userToEdit.fullName,
+        email: userToEdit.email || '',
+        phone: userToEdit.phone || '',
         role: userToEdit.role,
-        status: userToEdit.status,
+        status: userToEdit.status || 'active',
         password: '',
+        confirmPassword: '',
         tenantId: userToEdit.tenantId || ''
       });
     } else {
       setEditingUser(null);
       setFormData({
         username: '',
-        name: '',
+        fullName: '',
         email: '',
+        phone: '',
         role: 'user', // Default role for new accounts
         status: 'active',
         password: '',
+        confirmPassword: '',
         tenantId: ''
       });
     }
+    setShowPassword(false);
     setIsModalOpen(true);
   };
 
@@ -139,31 +111,95 @@ const Users = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    // Validation
+    if (!formData.username || !formData.fullName) {
+      alert('Vui lòng nhập đầy đủ tên đăng nhập và họ tên!');
+      return;
+    }
+    
     // Check permission: Manager can only create/edit users
-    if (user.role === 'manager' && formData.role !== 'user') {
+    if (currentUser?.role === 'manager' && formData.role !== 'user') {
       alert('Bạn chỉ có thể tạo/chỉnh sửa tài khoản người dùng (user)!');
       return;
     }
     
+    // Validate username uniqueness
+    const duplicateUser = users.find(u => 
+      u.username.toLowerCase() === formData.username.toLowerCase() && 
+      (!editingUser || u.id !== editingUser.id)
+    );
+    if (duplicateUser) {
+      alert(`Tên đăng nhập "${formData.username}" đã tồn tại!`);
+      return;
+    }
+    
+    // Validate email format if provided
+    if (formData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        alert('Email không đúng định dạng!');
+        return;
+      }
+    }
+    
+    // Validate phone format if provided
+    if (formData.phone) {
+      const phoneRegex = /^[0-9]{10}$/;
+      if (!phoneRegex.test(formData.phone)) {
+        alert('Số điện thoại phải có đúng 10 chữ số!');
+        return;
+      }
+    }
+    
+    // Validate password for new user or if password is being changed
+    if (!editingUser || formData.password) {
+      if (!formData.password) {
+        alert('Vui lòng nhập mật khẩu!');
+        return;
+      }
+      if (formData.password.length < 6) {
+        alert('Mật khẩu phải có ít nhất 6 ký tự!');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        alert('Mật khẩu xác nhận không khớp!');
+        return;
+      }
+    }
+    
     if (editingUser) {
       // Update user
-      const updatedUsers = users.map(u => 
-        u.id === editingUser.id 
-          ? { ...u, ...formData, password: formData.password || u.password }
-          : u
-      );
-      setUsers(updatedUsers);
+      const updateData = {
+        username: formData.username,
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
+        status: formData.status,
+        tenantId: formData.tenantId
+      };
+      
+      // Only update password if it was changed
+      if (formData.password) {
+        updateData.password = formData.password;
+      }
+      
+      updateUser(editingUser.id, updateData);
       alert('Tài khoản đã được cập nhật thành công!');
     } else {
       // Create new user
       const newUser = {
-        id: Date.now(),
-        ...formData,
-        lastLogin: null,
-        createdAt: new Date().toISOString(),
-        permissions: getDefaultPermissions(formData.role)
+        username: formData.username,
+        password: formData.password,
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
+        status: formData.status,
+        tenantId: formData.tenantId
       };
-      setUsers([...users, newUser]);
+      
+      addUser(newUser);
       alert('Tài khoản mới đã được tạo thành công!');
     }
     
@@ -171,57 +207,46 @@ const Users = () => {
   };
 
   const handleDelete = (userToDelete) => {
-    if (userToDelete.id === user.id) {
+    if (userToDelete.id === currentUser?.id) {
       alert('Không thể xóa tài khoản của chính mình!');
       return;
     }
     
     // Check permission: Manager can only delete users
-    if (user.role === 'manager' && userToDelete.role !== 'user') {
+    if (currentUser?.role === 'manager' && userToDelete.role !== 'user') {
       alert('Bạn không có quyền xóa tài khoản này!');
       return;
     }
     
-    if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${userToDelete.username}"?`)) {
-      setUsers(users.filter(u => u.id !== userToDelete.id));
+    if (currentUser?.role !== 'admin') {
+      alert('Chỉ admin mới có quyền xóa tài khoản!');
+      return;
+    }
+    
+    if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${userToDelete.username}"?\n\nLưu ý: Hành động này không thể hoàn tác!`)) {
+      deleteUser(userToDelete.id);
       alert('Tài khoản đã được xóa thành công!');
     }
   };
 
   const handleStatusToggle = (userToToggle) => {
-    if (userToToggle.id === user.id) {
+    if (userToToggle.id === currentUser?.id) {
       alert('Không thể thay đổi trạng thái tài khoản của chính mình!');
       return;
     }
     
     // Check permission: Manager can only toggle user status
-    if (user.role === 'manager' && userToToggle.role !== 'user') {
+    if (currentUser?.role === 'manager' && userToToggle.role !== 'user') {
       alert('Bạn không có quyền thay đổi trạng thái tài khoản này!');
       return;
     }
     
     const newStatus = userToToggle.status === 'active' ? 'inactive' : 'active';
-    const updatedUsers = users.map(u => 
-      u.id === userToToggle.id 
-        ? { ...u, status: newStatus }
-        : u
-    );
-    setUsers(updatedUsers);
+    updateUser(userToToggle.id, { status: newStatus });
     alert(`Tài khoản đã được ${newStatus === 'active' ? 'kích hoạt' : 'vô hiệu hóa'}!`);
   };
 
-  const getDefaultPermissions = (role) => {
-    switch (role) {
-      case 'admin':
-        return ['all'];
-      case 'manager':
-        return ['apartments', 'tenants', 'contracts', 'invoices'];
-      case 'user':
-        return ['my-contracts', 'my-invoices'];
-      default:
-        return [];
-    }
-  };
+
 
   // Get user stats
   const userStats = {
@@ -234,7 +259,7 @@ const Users = () => {
   };
 
   // Check permissions: Admin can manage all, Manager can only manage users
-  if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
     return (
       <div className="text-center py-12">
         <div className="text-muted mb-4">
@@ -262,11 +287,11 @@ const Users = () => {
               Quản lý tài khoản
             </h1>
             <p className="text-secondary">
-              {user.role === 'admin' 
+              {currentUser?.role === 'admin' 
                 ? 'Quản lý tất cả tài khoản người dùng trong hệ thống' 
                 : 'Quản lý tài khoản khách thuê (user)'}
             </p>
-            {user.role === 'manager' && (
+            {currentUser?.role === 'manager' && (
               <div className="mt-2 p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
                   <span className="font-medium">Quyền hạn của bạn:</span> Chỉ có thể tạo, chỉnh sửa và quản lý tài khoản khách thuê
@@ -368,7 +393,7 @@ const Users = () => {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Tìm kiếm theo tên, email, tên đăng nhập..."
+                placeholder="Tìm kiếm theo tên, email, điện thoại, tên đăng nhập..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="input w-full pl-10"
@@ -441,7 +466,7 @@ const Users = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3">
-                          {userItem.name.charAt(0).toUpperCase()}
+                          {userItem.fullName.charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <div className="text-sm font-medium text-primary">
@@ -455,10 +480,13 @@ const Users = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-primary font-medium">
-                        {userItem.name}
+                        {userItem.fullName}
                       </div>
                       <div className="text-sm text-secondary">
-                        {userItem.email}
+                        {userItem.email || 'Chưa có email'}
+                      </div>
+                      <div className="text-sm text-secondary">
+                        📞 {userItem.phone || 'Chưa có SĐT'}
                       </div>
                       {tenant && (
                         <div className="text-xs text-muted">
@@ -503,18 +531,20 @@ const Users = () => {
                       </button>
                       <button 
                         onClick={() => handleStatusToggle(userItem)}
-                        className={userItem.status === 'active' ? 'text-orange-600 hover:text-orange-800' : 'text-purple-600 hover:text-purple-800'}
-                        disabled={userItem.id === user.id}
+                        className={`${userItem.status === 'active' ? 'text-orange-600 hover:text-orange-800' : 'text-purple-600 hover:text-purple-800'} ${userItem.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={userItem.id === currentUser?.id}
                       >
                         {userItem.status === 'active' ? 'Khóa' : 'Mở khóa'}
                       </button>
-                      <button 
-                        onClick={() => handleDelete(userItem)}
-                        className="text-red-600 hover:text-red-800"
-                        disabled={userItem.id === user.id}
-                      >
-                        Xóa
-                      </button>
+                      {currentUser?.role === 'admin' && (
+                        <button 
+                          onClick={() => handleDelete(userItem)}
+                          className={`text-red-600 hover:text-red-800 ${userItem.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          disabled={userItem.id === currentUser?.id}
+                        >
+                          Xóa
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -579,12 +609,12 @@ const Users = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
-                      Họ và tên
+                      Họ và tên *
                     </label>
                     <input
                       type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                       className="input w-full"
                       required
                     />
@@ -605,17 +635,65 @@ const Users = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
-                      {editingUser ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu'}
+                      Số điện thoại
                     </label>
                     <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
                       className="input w-full"
-                      required={!editingUser}
-                      minLength="6"
+                      placeholder="Nhập số điện thoại (10 chữ số)"
                     />
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      {editingUser ? 'Mật khẩu mới (để trống nếu không đổi)' : 'Mật khẩu *'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        className="input w-full pr-10"
+                        required={!editingUser}
+                        minLength="6"
+                        placeholder={editingUser ? "Nhập để thay đổi mật khẩu" : "Tối thiểu 6 ký tự"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {(!editingUser || formData.password) && (
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Xác nhận mật khẩu *
+                      </label>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                        className="input w-full"
+                        required={!editingUser || formData.password}
+                        placeholder="Nhập lại mật khẩu"
+                      />
+                    </div>
+                  )}
                   
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
@@ -628,14 +706,14 @@ const Users = () => {
                     >
                       <option value="user">Khách thuê</option>
                       {/* Manager can only create/edit users, Admin can create all roles */}
-                      {user.role === 'admin' && (
+                      {currentUser?.role === 'admin' && (
                         <>
                           <option value="manager">Quản lý</option>
                           <option value="admin">Quản trị viên</option>
                         </>
                       )}
                     </select>
-                    {user.role === 'manager' && (
+                    {currentUser?.role === 'manager' && (
                       <p className="text-xs text-secondary mt-1">
                         * Bạn chỉ có thể tạo tài khoản khách thuê
                       </p>
@@ -743,9 +821,9 @@ const Users = () => {
                       {/* User Avatar */}
                       <div className="text-center">
                         <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                          {viewingUser.name.charAt(0).toUpperCase()}
+                          {viewingUser.fullName.charAt(0).toUpperCase()}
                         </div>
-                        <h2 className="text-xl font-bold text-primary">{viewingUser.name}</h2>
+                        <h2 className="text-xl font-bold text-primary">{viewingUser.fullName}</h2>
                         <p className="text-secondary">@{viewingUser.username}</p>
                       </div>
                       
@@ -755,7 +833,8 @@ const Users = () => {
                           <h4 className="text-sm font-medium text-secondary mb-3">Thông tin cơ bản</h4>
                           <div className="space-y-2">
                             <p><span className="font-medium">ID:</span> {viewingUser.id}</p>
-                            <p><span className="font-medium">Email:</span> {viewingUser.email}</p>
+                            <p><span className="font-medium">Email:</span> {viewingUser.email || 'Chưa có'}</p>
+                            <p><span className="font-medium">Điện thoại:</span> {viewingUser.phone || 'Chưa có'}</p>
                             <p><span className="font-medium">Vai trò:</span> 
                               <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                                 viewingUser.role === 'admin' ? 'badge-purple' :
@@ -815,22 +894,71 @@ const Users = () => {
                       <div>
                         <h4 className="text-sm font-medium text-secondary mb-3">Quyền hạn</h4>
                         <div className="bg-secondary rounded-lg p-4">
-                          <div className="flex flex-wrap gap-2">
-                            {viewingUser.permissions.map((permission, index) => (
-                              <span key={index} className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                {permission === 'all' ? 'Toàn quyền' :
-                                 permission === 'apartments' ? 'Quản lý căn hộ' :
-                                 permission === 'tenants' ? 'Quản lý khách thuê' :
-                                 permission === 'contracts' ? 'Quản lý hợp đồng' :
-                                 permission === 'invoices' ? 'Quản lý hóa đơn' :
-                                 permission === 'my-contracts' ? 'Hợp đồng của tôi' :
-                                 permission === 'my-invoices' ? 'Hóa đơn của tôi' :
-                                 permission}
-                              </span>
-                            ))}
+                          <div className="text-sm">
+                            {viewingUser.role === 'admin' ? (
+                              <p className="text-purple-600 font-medium">👑 Toàn quyền quản trị hệ thống</p>
+                            ) : viewingUser.role === 'manager' ? (
+                              <div className="space-y-1">
+                                <p className="text-blue-600 font-medium mb-2">👨‍💼 Quyền quản lý:</p>
+                                <ul className="list-disc list-inside text-secondary space-y-1">
+                                  <li>Quản lý căn hộ</li>
+                                  <li>Quản lý khách thuê</li>
+                                  <li>Quản lý hợp đồng</li>
+                                  <li>Quản lý hóa đơn</li>
+                                  <li>Quản lý tài khoản khách thuê</li>
+                                </ul>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-green-600 font-medium mb-2">👤 Quyền khách thuê:</p>
+                                <ul className="list-disc list-inside text-secondary space-y-1">
+                                  <li>Xem hợp đồng của mình</li>
+                                  <li>Xem hóa đơn của mình</li>
+                                  <li>Xem thông tin tài khoản</li>
+                                </ul>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Auto-created account note */}
+                      {viewingUser.role === 'user' && tenant && (
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-start space-x-3">
+                            <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div className="text-sm text-blue-800 dark:text-blue-200">
+                              <p className="font-medium mb-1">Lưu ý: Tài khoản tự động</p>
+                              {(() => {
+                                // Find contract that has this tenant as signer or room leader
+                                const contract = data.contracts.find(c => 
+                                  c.tenantId === tenant.id && 
+                                  (tenant.role === 'contract_signer' || tenant.role === 'room_leader')
+                                );
+                                if (contract) {
+                                  return (
+                                    <>
+                                      <p>Tài khoản này được tạo tự động khi tạo hợp đồng:</p>
+                                      <ul className="list-disc list-inside mt-1 space-y-1">
+                                        <li>Mã hợp đồng: <span className="font-medium">{contract.contractNumber}</span></li>
+                                        <li>Tên đăng nhập: <span className="font-medium">{viewingUser.username}</span></li>
+                                        <li>Mật khẩu mặc định: <span className="font-medium">123@123a</span></li>
+                                      </ul>
+                                      <p className="mt-2 text-xs">
+                                        * Vui lòng thông báo cho khách thuê đổi mật khẩu khi đăng nhập lần đầu
+                                      </p>
+                                    </>
+                                  );
+                                } else {
+                                  return <p>Tài khoản được liên kết với khách thuê {tenant.role === 'contract_signer' ? 'ký hợp đồng' : 'trưởng phòng'}</p>;
+                                }
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </>
                   );
                 })()}

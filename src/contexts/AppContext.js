@@ -74,13 +74,16 @@ const initialData = {
   contracts: [
     {
       id: '1',
-      contractNumber: 'HD001',
+      contractNumber: 'HĐ001/HĐTCH-2024',
       apartmentId: '102',
       tenantId: '1',
+      signDate: '2024-01-01',
       startDate: '2024-01-01',
       endDate: '2024-12-31',
-      rentAmount: 6000000,
+      monthlyRent: 6000000,
+      deposit: 12000000,
       status: 'active',
+      createdAt: '2024-01-01T10:00:00.000Z'
     },
   ],
   invoices: [
@@ -143,6 +146,12 @@ const initialData = {
       password: 'admin123',
       role: 'admin',
       fullName: 'Quản trị viên',
+      email: 'admin@crm.com',
+      phone: '0901234567',
+      address: '123 Nguyễn Văn A, Quận 1, TP.HCM',
+      status: 'active',
+      createdAt: '2024-01-01',
+      lastLogin: new Date().toISOString()
     },
     {
       id: '2',
@@ -150,6 +159,12 @@ const initialData = {
       password: 'manager123',
       role: 'manager',
       fullName: 'Người quản lý',
+      email: 'manager@crm.com',
+      phone: '0902345678',
+      address: '456 Lê Lợi, Quận 3, TP.HCM',
+      status: 'active',
+      createdAt: '2024-01-01',
+      lastLogin: new Date().toISOString()
     },
     {
       id: '3',
@@ -157,7 +172,13 @@ const initialData = {
       password: 'user123',
       role: 'user',
       fullName: 'Nguyễn Văn An',
+      email: 'nguyenvanan@email.com',
+      phone: '0903456789',
+      address: '789 Trần Hưng Đạo, Quận 5, TP.HCM',
+      status: 'active',
       tenantId: '1', // Liên kết với tenant có id '1'
+      createdAt: '2024-01-01',
+      lastLogin: new Date().toISOString()
     },
   ],
 };
@@ -166,25 +187,100 @@ export const AppProvider = ({ children }) => {
   const [data, setData] = useState(initialData);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // Function to sync contract status based on current date
+  const syncContractStatus = (dataToSync) => {
+    const today = new Date().toISOString().split('T')[0];
+    let hasChanges = false;
+    
+    const updatedContracts = dataToSync.contracts.map(contract => {
+      // Skip if manually set to inactive (thanh lý)
+      if (contract.status === 'inactive') {
+        return contract;
+      }
+      
+      // Calculate status based on dates
+      let newStatus;
+      if (contract.startDate > today) {
+        newStatus = 'pending'; // Chưa có hiệu lực
+      } else if (contract.endDate < today) {
+        newStatus = 'expired'; // Hết hạn
+      } else {
+        newStatus = 'active'; // Hiệu lực
+      }
+      
+      // Check if status changed
+      if (contract.status !== newStatus) {
+        hasChanges = true;
+        return { ...contract, status: newStatus };
+      }
+      return contract;
+    });
+    
+    if (!hasChanges) return dataToSync;
+    
+    // Update tenants status for expired contracts
+    const expiredContractApartments = updatedContracts
+      .filter(c => c.status === 'expired')
+      .map(c => c.apartmentId);
+    
+    const updatedTenants = dataToSync.tenants.map(tenant => {
+      if (expiredContractApartments.includes(tenant.apartmentId) && tenant.status === 'active') {
+        // Set status to inactive and remove apartment assignment
+        return { ...tenant, status: 'inactive', apartmentId: null };
+      }
+      return tenant;
+    });
+    
+    // Update apartments - ensure rooms without active contracts are available
+    const updatedApartments = dataToSync.apartments.map(apartment => {
+      const hasActiveContract = updatedContracts.some(c => 
+        c.apartmentId === apartment.id && c.status === 'active'
+      );
+      
+      // If no active contract and not in maintenance, set to available
+      if (!hasActiveContract && apartment.status !== 'maintenance') {
+        return { ...apartment, status: 'available' };
+      }
+      return apartment;
+    });
+    
+    return {
+      ...dataToSync,
+      contracts: updatedContracts,
+      tenants: updatedTenants,
+      apartments: updatedApartments
+    };
+  };
+
   useEffect(() => {
     // Load data from localStorage
     const savedData = localStorage.getItem('apartmentData');
     if (savedData) {
-      setData(JSON.parse(savedData));
+      const parsedData = JSON.parse(savedData);
+      // Sync contract status on load
+      const syncedData = syncContractStatus(parsedData);
+      setData(syncedData);
     }
 
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
     }
-    
-    // Removed automatic check for expired contracts
   }, []);
 
   useEffect(() => {
     // Save data to localStorage whenever it changes
     localStorage.setItem('apartmentData', JSON.stringify(data));
   }, [data]);
+
+  // Check and sync status every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setData(prevData => syncContractStatus(prevData));
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Function to check and handle expired contracts (kept for manual use only)
   const checkExpiredContracts = () => {
@@ -206,7 +302,7 @@ export const AppProvider = ({ children }) => {
             contract.apartmentId === tenant.apartmentId
           );
           return isInExpiredContract && tenant.status === 'active'
-            ? { ...tenant, status: 'inactive' }
+            ? { ...tenant, status: 'inactive', apartmentId: null }
             : tenant;
         });
         
@@ -233,7 +329,21 @@ export const AppProvider = ({ children }) => {
   const login = (username, password) => {
     const user = data.users.find(u => u.username === username && u.password === password);
     if (user) {
-      const userWithoutPassword = { ...user };
+      // Check if user is active
+      if (user.status !== 'active') {
+        alert('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.');
+        return false;
+      }
+      
+      // Update last login time
+      setData(prev => ({
+        ...prev,
+        users: prev.users.map(u => 
+          u.id === user.id ? { ...u, lastLogin: new Date().toISOString() } : u
+        )
+      }));
+      
+      const userWithoutPassword = { ...user, lastLogin: new Date().toISOString() };
       delete userWithoutPassword.password;
       setCurrentUser(userWithoutPassword);
       localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
@@ -249,6 +359,19 @@ export const AppProvider = ({ children }) => {
 
   // Apartment functions
   const updateApartment = (apartmentId, updates) => {
+    // Check if apartment has active contract
+    const hasActiveContract = data.contracts.some(contract => 
+      contract.apartmentId === apartmentId && 
+      contract.status === 'active'
+    );
+    
+    // If apartment has active contract, don't allow status changes
+    if (hasActiveContract && updates.status) {
+      // Remove status from updates - status is managed by contract
+      const { status, ...allowedUpdates } = updates;
+      updates = allowedUpdates;
+    }
+
     // If status is changed to available, clear all tenant assignments
     if (updates.status === 'available') {
       // Remove all tenants from this apartment
@@ -380,49 +503,197 @@ export const AppProvider = ({ children }) => {
     return getApartmentTenantCount(apartmentId) > 0;
   };
 
+  // Generate contract number based on year
+  const generateContractNumber = () => {
+    const currentYear = new Date().getFullYear();
+    
+    // Get all contracts for the current year
+    const contractsThisYear = data.contracts.filter(contract => {
+      const contractYear = new Date(contract.createdAt || contract.signDate).getFullYear();
+      return contractYear === currentYear;
+    });
+    
+    // Extract numbers from existing contracts
+    const existingNumbers = contractsThisYear
+      .map(contract => {
+        const match = contract.contractNumber.match(/HĐ(\d{3})\/HĐTCH-\d{4}/);
+        return match ? parseInt(match[1]) : 0;
+      })
+      .filter(num => num > 0);
+    
+    // Find the next available number
+    let nextNumber = 1;
+    if (existingNumbers.length > 0) {
+      nextNumber = Math.max(...existingNumbers) + 1;
+    }
+    
+    // Format with leading zeros
+    const formattedNumber = String(nextNumber).padStart(3, '0');
+    
+    // Return the formatted contract number
+    return `HĐ${formattedNumber}/HĐTCH-${currentYear}`;
+  };
+
   // Contract functions
   const addContract = (contract) => {
     const newContract = {
       ...contract,
       id: Date.now().toString(),
     };
-    setData(prev => ({
-      ...prev,
-      contracts: [...prev.contracts, newContract]
-    }));
     
-    // Update apartment status
-    updateApartment(contract.apartmentId, { 
-      status: 'occupied', 
-      currentTenantId: contract.tenantId 
+    setData(prev => {
+      // Get tenant information to create user account
+      const tenant = prev.tenants.find(t => t.id === contract.tenantId);
+      let updatedUsers = prev.users;
+      
+      if (tenant && (tenant.role === 'contract_signer' || tenant.role === 'room_leader')) {
+        // Check if user account already exists for this tenant
+        const existingUser = prev.users.find(u => u.tenantId === tenant.id);
+        
+        if (!existingUser) {
+          // Check if username (contract number) already exists
+          const existingUsername = prev.users.find(u => u.username === contract.contractNumber);
+          if (existingUsername) {
+            // If username exists, show warning but continue creating contract
+            setTimeout(() => {
+              alert(`⚠️ Lưu ý: Tên đăng nhập "${contract.contractNumber}" đã tồn tại.\n\nKhông thể tạo tài khoản tự động cho khách thuê này.\nVui lòng tạo tài khoản thủ công nếu cần.`);
+            }, 100);
+          } else {
+            // Create user account with contract number as username
+            const newUserAccount = {
+              id: Date.now().toString() + '_user',
+              username: contract.contractNumber,
+              password: '123@123a', // Default password
+              fullName: tenant.fullName,
+              email: tenant.email || '',
+              phone: tenant.phone || '',
+              address: tenant.permanentAddress || '',
+              role: 'user',
+              status: 'active',
+              tenantId: tenant.id,
+              createdAt: new Date().toISOString(),
+              lastLogin: null
+            };
+            
+            // Add user to users array
+            updatedUsers = [...prev.users, newUserAccount];
+          
+            // Show notification about new account
+            setTimeout(() => {
+              alert(`Tài khoản đã được tạo tự động!\n\nTên đăng nhập: ${contract.contractNumber}\nMật khẩu: 123@123a\n\nVui lòng thông báo cho khách thuê và yêu cầu đổi mật khẩu khi đăng nhập lần đầu.`);
+            }, 100);
+          }
+        }
+      }
+      
+      // Add new contract
+      const updatedContracts = [...prev.contracts, newContract];
+      
+      // Update apartment status to occupied (remove from available/maintenance)
+      const updatedApartments = prev.apartments.map(apt => 
+        apt.id === contract.apartmentId 
+          ? { ...apt, status: 'occupied', currentTenantId: contract.tenantId }
+          : apt
+      );
+      
+      return {
+        ...prev,
+        contracts: updatedContracts,
+        apartments: updatedApartments,
+        users: updatedUsers
+      };
     });
     
     return newContract;
   };
 
   const updateContract = (contractId, updates) => {
-    setData(prev => ({
-      ...prev,
-      contracts: prev.contracts.map(contract => 
+    setData(prev => {
+      const updatedContracts = prev.contracts.map(contract => 
         contract.id === contractId ? { ...contract, ...updates } : contract
-      )
-    }));
+      );
+      
+      // If contract is being set to expired, update apartment and tenants
+      if (updates.status === 'expired') {
+        const expiredContract = updatedContracts.find(c => c.id === contractId);
+        if (expiredContract) {
+          // Check if apartment has other active contracts
+          const hasOtherActiveContract = updatedContracts.some(c => 
+            c.apartmentId === expiredContract.apartmentId && 
+            c.status === 'active' && 
+            c.id !== contractId
+          );
+          
+          if (!hasOtherActiveContract) {
+            // Update apartment status
+            const updatedApartments = prev.apartments.map(apt => 
+              apt.id === expiredContract.apartmentId && apt.status !== 'maintenance'
+                ? { ...apt, status: 'available', currentTenantId: null }
+                : apt
+            );
+            
+            // Update tenants status and remove apartment assignment
+            const updatedTenants = prev.tenants.map(tenant => 
+              tenant.apartmentId === expiredContract.apartmentId && tenant.status === 'active'
+                ? { ...tenant, status: 'inactive', apartmentId: null }
+                : tenant
+            );
+            
+            return {
+              ...prev,
+              contracts: updatedContracts,
+              apartments: updatedApartments,
+              tenants: updatedTenants
+            };
+          }
+        }
+      }
+      
+      return {
+        ...prev,
+        contracts: updatedContracts
+      };
+    });
   };
 
   const deleteContract = (contractId) => {
-    const contract = data.contracts.find(c => c.id === contractId);
-    if (contract) {
-      // Update apartment status to available
-      updateApartment(contract.apartmentId, { 
-        status: 'available', 
-        currentTenantId: null 
+    setData(prev => {
+      const contractToDelete = prev.contracts.find(c => c.id === contractId);
+      if (!contractToDelete) return prev;
+      
+      // Remove contract
+      const updatedContracts = prev.contracts.filter(contract => contract.id !== contractId);
+      
+      // Check if apartment has any other active contracts
+      const hasOtherActiveContract = updatedContracts.some(c => 
+        c.apartmentId === contractToDelete.apartmentId && c.status === 'active'
+      );
+      
+      // Update apartment status to available if no other active contracts
+      const updatedApartments = prev.apartments.map(apt => {
+        if (apt.id === contractToDelete.apartmentId && !hasOtherActiveContract) {
+          // If apartment is not in maintenance, set to available
+          return apt.status === 'maintenance' 
+            ? apt 
+            : { ...apt, status: 'available', currentTenantId: null };
+        }
+        return apt;
       });
-    }
-    
-    setData(prev => ({
-      ...prev,
-      contracts: prev.contracts.filter(contract => contract.id !== contractId)
-    }));
+      
+      // Update tenants status to inactive and remove apartment assignment
+      const updatedTenants = prev.tenants.map(tenant => 
+        tenant.apartmentId === contractToDelete.apartmentId && tenant.status === 'active'
+          ? { ...tenant, status: 'inactive', apartmentId: null }
+          : tenant
+      );
+      
+      return {
+        ...prev,
+        contracts: updatedContracts,
+        apartments: updatedApartments,
+        tenants: updatedTenants
+      };
+    });
   };
 
   // Invoice functions
@@ -459,6 +730,12 @@ export const AppProvider = ({ children }) => {
     const newUser = {
       ...user,
       id: Date.now().toString(),
+      status: user.status || 'active',
+      createdAt: new Date().toISOString(),
+      lastLogin: null,
+      email: user.email || '',
+      phone: user.phone || '',
+      address: user.address || ''
     };
     setData(prev => ({
       ...prev,
@@ -474,6 +751,15 @@ export const AppProvider = ({ children }) => {
         user.id === userId ? { ...user, ...updates } : user
       )
     }));
+    
+    // Update currentUser if updating self
+    if (currentUser && currentUser.id === userId) {
+      const updatedUser = { ...currentUser, ...updates };
+      // Remove password from currentUser
+      delete updatedUser.password;
+      setCurrentUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    }
   };
 
   const deleteUser = (userId) => {
@@ -516,6 +802,7 @@ export const AppProvider = ({ children }) => {
     getApartmentTenantCount,
     getPrimaryTenant,
     isApartmentOccupied,
+    generateContractNumber,
     addContract,
     updateContract,
     deleteContract,

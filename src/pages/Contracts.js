@@ -5,7 +5,7 @@ import { formatDate } from '../utils/dateFormat';
 
 const Contracts = () => {
   const { t } = useLanguage();
-  const { data, currentUser, updateContract, addContract, deleteContract, addTenant, updateTenant, assignTenantToApartment, updateRoomPrice, getRoomPrice } = useApp();
+  const { data, currentUser, updateContract, addContract, deleteContract, addTenant, updateTenant, assignTenantToApartment, updateRoomPrice, getRoomPrice, generateContractNumber } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,7 +17,11 @@ const Contracts = () => {
     phone: '',
     email: '',
     idNumber: '',
-    role: 'member'
+    idIssueDate: '',
+    idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+    hometown: '',
+    permanentAddress: ''
+    // role is managed in tenants table, not stored here
   });
   
   // State for renewal modal
@@ -31,7 +35,7 @@ const Contracts = () => {
   // State for import tenant
   const [showImportTenant, setShowImportTenant] = useState(false);
   const [tenantSearchTerm, setTenantSearchTerm] = useState('');
-  
+
   // Handle ESC key
   useEffect(() => {
     const handleEsc = (e) => {
@@ -57,13 +61,17 @@ const Contracts = () => {
     tenantPhone: '',
     tenantEmail: '',
     tenantIdNumber: '',
+    tenantIdIssueDate: '',
+    tenantIdIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+    tenantHometown: '',
+    tenantPermanentAddress: '',
     tenantRole: 'room_leader',
+    signDate: '', // Ngày ký hợp đồng
     startDate: '',
     endDate: '',
     monthlyRent: '',
     deposit: '',
     terms: '',
-    status: 'active',
     members: [] // Thành viên trong phòng
   });
 
@@ -73,6 +81,10 @@ const Contracts = () => {
     phone: '',
     email: '',
     idNumber: '',
+    idIssueDate: '',
+    idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+    hometown: '',
+    permanentAddress: '',
     role: 'member'
   });
 
@@ -108,19 +120,8 @@ const Contracts = () => {
           isExistingTenant: true // Flag to identify existing tenants
         }));
 
-      // Also include any members that might be in the contract but not in tenants table
-      const contractMembers = contract.members || [];
+      // Only use members from tenants table, ignore contract.members to avoid conflicts
       const combinedMembers = [...existingMembers];
-      
-      // Add contract members that are not already in existingMembers
-      contractMembers.forEach(contractMember => {
-        if (!existingMembers.find(em => em.id === contractMember.id)) {
-          combinedMembers.push({
-            ...contractMember,
-            isExistingTenant: false
-          });
-        }
-      });
 
       // Get tenant information
       const tenant = data.tenants.find(t => t.id === contract.tenantId);
@@ -131,25 +132,33 @@ const Contracts = () => {
         tenantPhone: tenant?.phone || '',
         tenantEmail: tenant?.email || '',
         tenantIdNumber: tenant?.idNumber || '',
+        tenantIdIssueDate: tenant?.idIssueDate || '',
+        tenantIdIssuePlace: tenant?.idIssuePlace || '',
+        tenantHometown: tenant?.hometown || '',
+        tenantPermanentAddress: tenant?.permanentAddress || '',
         tenantRole: tenant?.role || 'room_leader',
         members: combinedMembers
       });
     } else {
       setEditingContract(null);
       setFormData({
-        contractNumber: `HD${Date.now()}`,
+        contractNumber: generateContractNumber(), // Tự động tạo số hợp đồng
         apartmentId: '',
         tenantName: '',
         tenantPhone: '',
         tenantEmail: '',
         tenantIdNumber: '',
+        tenantIdIssueDate: '',
+        tenantIdIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+        tenantHometown: '',
+        tenantPermanentAddress: '',
         tenantRole: 'room_leader',
+        signDate: new Date().toISOString().split('T')[0], // Mặc định là ngày hôm nay
         startDate: '',
         endDate: '',
         monthlyRent: '',
         deposit: '',
         terms: '',
-        status: 'active',
         members: []
       });
     }
@@ -167,13 +176,17 @@ const Contracts = () => {
       tenantPhone: '',
       tenantEmail: '',
       tenantIdNumber: '',
+      tenantIdIssueDate: '',
+      tenantIdIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+      tenantHometown: '',
+      tenantPermanentAddress: '',
       tenantRole: 'room_leader',
+      signDate: '',
       startDate: '',
       endDate: '',
       monthlyRent: '',
       deposit: '',
       terms: '',
-      status: 'active',
       members: []
     });
     setNewMember({
@@ -181,6 +194,10 @@ const Contracts = () => {
       phone: '',
       email: '',
       idNumber: '',
+      idIssueDate: '',
+      idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+      hometown: '',
+      permanentAddress: '',
       role: 'member'
     });
     // Reset editing member state
@@ -190,6 +207,10 @@ const Contracts = () => {
       phone: '',
       email: '',
       idNumber: '',
+      idIssueDate: '',
+      idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+      hometown: '',
+      permanentAddress: '',
       role: 'member'
     });
     // Reset import tenant state
@@ -199,59 +220,157 @@ const Contracts = () => {
 
   const handleSubmit = (e) => {
     if (e && e.preventDefault) {
-      e.preventDefault();
+    e.preventDefault();
+    }
+    
+    // Validation
+    if (!formData.contractNumber || !formData.apartmentId || !formData.startDate || 
+        !formData.endDate || !formData.monthlyRent || !formData.deposit) {
+      alert('Vui lòng điền đầy đủ tất cả các trường bắt buộc!');
+      return;
+    }
+    
+    // Check for duplicate contract number
+    if (!editingContract) {
+      // Validate contract number format (optional - only warn if not following convention)
+      const contractNumberPattern = /^HĐ\d{3}\/HĐTCH-\d{4}$/;
+      if (!contractNumberPattern.test(formData.contractNumber)) {
+        const confirmCustom = window.confirm(
+          `Mã hợp đồng "${formData.contractNumber}" không theo định dạng chuẩn (HĐxxx/HĐTCH-YYYY).\n\n` +
+          `Bạn có chắc chắn muốn sử dụng mã này không?\n\n` +
+          `Nhấn OK để tiếp tục, Cancel để quay lại chỉnh sửa.`
+        );
+        if (!confirmCustom) {
+          return;
+        }
+      }
+      
+      const duplicateContract = data.contracts.find(c => c.contractNumber === formData.contractNumber);
+      if (duplicateContract) {
+        alert(`Số hợp đồng ${formData.contractNumber} đã tồn tại trong hệ thống!`);
+        return;
+      }
+    }
+    
+    // Validate tenant information
+    if (!formData.tenantName || !formData.tenantPhone || !formData.tenantIdNumber || 
+        !formData.tenantIdIssueDate || !formData.tenantIdIssuePlace || 
+        !formData.tenantHometown || !formData.tenantPermanentAddress) {
+      alert('Vui lòng nhập đầy đủ thông tin khách thuê bắt buộc!\n\nCác trường bắt buộc:\n- Họ và tên\n- Số điện thoại\n- Số CCCD\n- Ngày cấp CCCD\n- Nơi cấp CCCD\n- Quê quán\n- Nơi thường trú');
+      return;
+    }
+    
+    // Validate phone number (10 digits)
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(formData.tenantPhone)) {
+      alert('Số điện thoại phải có đúng 10 chữ số!');
+      return;
+    }
+    
+    // Validate email format if provided
+    if (formData.tenantEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.tenantEmail)) {
+        alert('Email không đúng định dạng!');
+        return;
+      }
+    }
+    
+    // Validate ID number (12 digits for CCCD)
+    const idRegex = /^[0-9]{12}$/;
+    if (!idRegex.test(formData.tenantIdNumber)) {
+      alert('Số CCCD phải có đúng 12 chữ số!');
+      return;
+    }
+    
+    // Check for duplicate ID number in tenants table
+    if (!editingContract) { // Only check when creating new contract
+      const duplicateTenant = data.tenants.find(t => t.idNumber === formData.tenantIdNumber);
+      if (duplicateTenant) {
+        alert(`Số CCCD ${formData.tenantIdNumber} đã tồn tại trong hệ thống!\n\nKhách thuê: ${duplicateTenant.fullName}\nSố điện thoại: ${duplicateTenant.phone}`);
+        return;
+      }
+    }
+    
+    // Validate members
+    if (formData.members && formData.members.length > 0) {
+      for (const member of formData.members) {
+        if (!member.fullName || !member.phone || !member.idNumber || 
+            !member.idIssueDate || !member.idIssuePlace || 
+            !member.hometown || !member.permanentAddress) {
+          alert(`Thành viên ${member.fullName || 'chưa có tên'} thiếu thông tin bắt buộc!\n\nCác trường bắt buộc:\n- Họ và tên\n- Số điện thoại\n- Số CCCD\n- Ngày cấp CCCD\n- Nơi cấp CCCD\n- Quê quán\n- Nơi thường trú`);
+          return;
+        }
+        
+        // Validate member phone
+        if (!phoneRegex.test(member.phone)) {
+          alert(`Số điện thoại của ${member.fullName} phải có đúng 10 chữ số!`);
+          return;
+        }
+        
+        // Validate member email if provided
+        if (member.email) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(member.email)) {
+            alert(`Email của ${member.fullName} không đúng định dạng!`);
+            return;
+          }
+        }
+        
+        // Validate member ID if provided
+        if (member.idNumber) {
+          const idRegex = /^[0-9]{12}$/;
+          if (!idRegex.test(member.idNumber)) {
+            alert(`Số CCCD của ${member.fullName} phải có đúng 12 chữ số!`);
+            return;
+          }
+          
+          // Check for duplicate ID within current members list
+          const duplicateMember = formData.members.find(m => 
+            m.id !== member.id && m.idNumber === member.idNumber
+          );
+          if (duplicateMember) {
+            alert(`Số CCCD ${member.idNumber} đã được sử dụng cho thành viên ${duplicateMember.fullName} trong danh sách!`);
+            return;
+          }
+          
+          // Check for duplicate ID with tenant signing the contract
+          if (member.idNumber === formData.tenantIdNumber) {
+            alert(`Số CCCD ${member.idNumber} đã được sử dụng cho người ký hợp đồng!`);
+            return;
+          }
+          
+          // Check for duplicate ID in existing tenants (only for new members)
+          if (!member.isExistingTenant) {
+            const existingTenant = data.tenants.find(t => t.idNumber === member.idNumber);
+            if (existingTenant) {
+              alert(`Số CCCD ${member.idNumber} đã tồn tại trong hệ thống!\n\nKhách thuê: ${existingTenant.fullName}\nSố điện thoại: ${existingTenant.phone}\n\nNếu muốn thêm khách thuê này vào phòng, vui lòng sử dụng chức năng "Import có sẵn"`);
+              return;
+            }
+          }
+        }
+      }
     }
     
     if (editingContract) {
-      // Check if monthlyRent has changed
-      if (editingContract.monthlyRent !== formData.monthlyRent && formData.apartmentId && formData.monthlyRent) {
-        // Update room price in cost management
-        updateRoomPrice(formData.apartmentId, formData.monthlyRent);
-      }
+      // When editing contract, ONLY update members, nothing else
       
-      // Create or update tenant
-      const tenantData = {
-        fullName: formData.tenantName,
-        phone: formData.tenantPhone,
-        email: formData.tenantEmail || '',
-        idNumber: formData.tenantIdNumber || '',
-        role: formData.tenantRole,
-        status: 'active'
-      };
-
-      if (editingContract.tenantId) {
-        updateTenant(editingContract.tenantId, tenantData);
-      } else {
-        const newTenant = addTenant(tenantData);
-        formData.tenantId = newTenant.id;
-      }
-      
-      // Add tenant to members list if not already present
-      const tenantMember = {
-        id: editingContract.tenantId || formData.tenantId,
-        fullName: formData.tenantName,
-        phone: formData.tenantPhone,
-        email: formData.tenantEmail || '',
-        idNumber: formData.tenantIdNumber || '',
-        role: formData.tenantRole,
-        isExistingTenant: true
-      };
-
-      const updatedMembers = formData.members.filter(m => m.id !== tenantMember.id);
-      updatedMembers.unshift(tenantMember); // Add tenant at the beginning of the list
-      formData.members = updatedMembers;
-      
-      updateContract(editingContract.id, formData);
+      // Only update contract members list (without roles - roles are managed in tenants table)
+      const membersWithoutRoles = formData.members.map(({ role, ...memberWithoutRole }) => memberWithoutRole);
+      updateContract(editingContract.id, { members: membersWithoutRoles });
       
       // Update existing members in tenants if needed
       if (formData.members && formData.members.length > 0) {
         formData.members.forEach(member => {
           if (member.isExistingTenant) {
-            // Update existing tenant role if changed
-            const existingTenant = data.tenants.find(t => t.id === member.id);
-            if (existingTenant && existingTenant.role !== member.role) {
-              updateTenant(member.id, { role: member.role });
-            }
+            // Update existing tenant and ensure they are assigned to the apartment
+            updateTenant(member.id, { 
+              role: member.role,
+              apartmentId: formData.apartmentId,
+              status: 'active'
+            });
+            // Also update assignment to apartment
+            assignTenantToApartment(member.id, formData.apartmentId, member.role);
           } else {
             // Add new member to tenants and assign to apartment
             const newTenant = addTenant({
@@ -271,29 +390,42 @@ const Contracts = () => {
         phone: formData.tenantPhone,
         email: formData.tenantEmail || '',
         idNumber: formData.tenantIdNumber || '',
+        idIssueDate: formData.tenantIdIssueDate || '',
+        idIssuePlace: formData.tenantIdIssuePlace || '',
+        hometown: formData.tenantHometown || '',
+        permanentAddress: formData.tenantPermanentAddress || '',
         role: formData.tenantRole,
-        status: 'active'
+        status: 'active',
+        apartmentId: formData.apartmentId
       });
+      
+      // Properly assign tenant to apartment with role
+      assignTenantToApartment(newTenant.id, formData.apartmentId, formData.tenantRole);
 
-      // Add tenant to members list
+      // If tenant role is room_leader, add to members list
+      if (formData.tenantRole === 'room_leader') {
       const tenantMember = {
         id: newTenant.id,
         fullName: formData.tenantName,
         phone: formData.tenantPhone,
         email: formData.tenantEmail || '',
         idNumber: formData.tenantIdNumber || '',
-        role: formData.tenantRole,
+          role: 'room_leader',
         isExistingTenant: true
       };
 
+        // Add tenant as first member if room_leader
       const updatedMembers = [tenantMember, ...(formData.members || [])];
       formData.members = updatedMembers;
+      }
+      // If contract_signer, don't add to members list (they don't live in the apartment)
 
       const newContract = {
         id: Date.now(),
         ...formData,
         tenantId: newTenant.id,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        signDate: formData.signDate || new Date().toISOString().split('T')[0] // Mặc định là ngày tạo nếu không có
       };
       
       // Set room price when creating new contract
@@ -306,14 +438,30 @@ const Contracts = () => {
       // Add all members to tenants and assign to apartment
       if (formData.members && formData.members.length > 0) {
         formData.members.forEach(member => {
+          // Skip the main tenant who signs the contract - they were already processed above
+          if (member.id === newTenant.id) {
+            return;
+          }
+          
           if (!member.isExistingTenant) {
-            const newTenant = addTenant({
+            // All new members added through the form will have role 'member'
+            const newMemberTenant = addTenant({
               ...member,
+              role: 'member', // Force role to 'member' for all added members
               status: 'active',
               apartmentId: formData.apartmentId
             });
-            // Assign to apartment with role
-            assignTenantToApartment(newTenant.id, formData.apartmentId, member.role);
+            // Assign to apartment with member role
+            assignTenantToApartment(newMemberTenant.id, formData.apartmentId, 'member');
+          } else {
+            // For existing tenants, ensure they are assigned to the apartment with active status
+            updateTenant(member.id, {
+              apartmentId: formData.apartmentId,
+              role: member.role || 'member', // Keep their existing role
+              status: 'active'
+            });
+            // Also ensure they are properly assigned to the apartment
+            assignTenantToApartment(member.id, formData.apartmentId, member.role || 'member');
           }
         });
       }
@@ -324,19 +472,62 @@ const Contracts = () => {
 
   // Member management functions
   const addMember = () => {
-    if (newMember.fullName && newMember.phone) {
-      // Check if there's already a contract_signer or room_leader
-      const hasContractSigner = formData.members.some(m => m.role === 'contract_signer');
-      const hasRoomLeader = formData.members.some(m => m.role === 'room_leader');
+    // Validate required fields
+    if (!newMember.fullName || !newMember.phone || !newMember.idNumber || 
+        !newMember.idIssueDate || !newMember.idIssuePlace || 
+        !newMember.hometown || !newMember.permanentAddress) {
+      alert('Vui lòng điền đầy đủ tất cả các trường bắt buộc cho thành viên!\n\nCác trường bắt buộc:\n- Họ và tên\n- Số điện thoại\n- Số CCCD\n- Ngày cấp CCCD\n- Nơi cấp CCCD\n- Quê quán\n- Nơi thường trú');
+      return;
+    }
+    
+    // Validate phone number
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(newMember.phone)) {
+      alert('Số điện thoại phải có đúng 10 chữ số!');
+      return;
+    }
+    
+    // Validate email if provided
+    if (newMember.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newMember.email)) {
+        alert('Email không đúng định dạng!');
+        return;
+      }
+    }
+    
+    // Validate ID number (12 digits for CCCD)
+    const idRegex = /^[0-9]{12}$/;
+    if (!idRegex.test(newMember.idNumber)) {
+      alert('Số CCCD phải có đúng 12 chữ số!');
+      return;
+    }
+    
+    // Check for duplicate ID with tenant signing the contract
+    if (newMember.idNumber === formData.tenantIdNumber) {
+      alert(`Số CCCD ${newMember.idNumber} đã được sử dụng cho người ký hợp đồng!`);
+      return;
+    }
+    
+    // Check for duplicate ID within current members list
+    const duplicateMember = formData.members?.find(m => m.idNumber === newMember.idNumber);
+    if (duplicateMember) {
+      alert(`Số CCCD ${newMember.idNumber} đã được sử dụng cho thành viên ${duplicateMember.fullName} trong danh sách!`);
+      return;
+    }
+    
+    // Check for duplicate ID in existing tenants
+    const existingTenant = data.tenants.find(t => t.idNumber === newMember.idNumber);
+    if (existingTenant) {
+      alert(`Số CCCD ${newMember.idNumber} đã tồn tại trong hệ thống!\n\nKhách thuê: ${existingTenant.fullName}\nSố điện thoại: ${existingTenant.phone}\n\nNếu muốn thêm khách thuê này vào phòng, vui lòng sử dụng chức năng "Import có sẵn"`);
+      return;
+    }
       
-      // New members can only be regular members
-      const memberRole = 'member';
-      
-      // Add the new member
+      // All new members will have role 'member'
       const newMemberData = {
         id: Date.now(),
         ...newMember,
-        role: memberRole,
+        role: 'member', // Force role to member
         isExistingTenant: false
       };
       
@@ -351,9 +542,12 @@ const Contracts = () => {
         phone: '',
         email: '',
         idNumber: '',
+        idIssueDate: '',
+        idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+        hometown: '',
+        permanentAddress: '',
         role: 'member'
       });
-    }
   };
 
   const removeMember = (memberId) => {
@@ -362,64 +556,25 @@ const Contracts = () => {
     if (memberToRemove && memberToRemove.isExistingTenant) {
       // For existing tenants, we should deactivate them or remove them from apartment
       if (window.confirm(`Bạn có chắc chắn muốn xóa ${memberToRemove.fullName} khỏi phòng?\n\nThành viên này sẽ:\n- Được chuyển về trạng thái "Không hoạt động"\n- Không còn thuộc phòng nào\n- Có thể được kích hoạt lại từ mục Quản lý khách thuê`)) {
-          updateTenant(memberId, { status: 'inactive', apartmentId: null, role: 'member' });
-          setFormData({
-            ...formData,
-            members: formData.members.filter(member => member.id !== memberId)
-          });
-        }
-      } else {
-        // For new members that haven't been saved yet, just remove from the list
-        if (window.confirm(`Bạn có chắc chắn muốn xóa ${memberToRemove.fullName} khỏi danh sách thành viên?`)) {
-          setFormData({
-            ...formData,
-            members: formData.members.filter(member => member.id !== memberId)
-          });
-        }
+        updateTenant(memberId, { status: 'inactive', apartmentId: null, role: 'member' });
+        setFormData({
+          ...formData,
+          members: formData.members.filter(member => member.id !== memberId)
+        });
       }
-    };
-
-  const updateMemberRole = (memberId, newRole) => {
-    const hasContractSigner = formData.members.some(m => m.role === 'contract_signer' && m.id !== memberId);
-    const hasRoomLeader = formData.members.some(m => m.role === 'room_leader' && m.id !== memberId);
-    
-    // If trying to change to contract_signer when there's already a room_leader
-    if (hasRoomLeader && newRole === 'contract_signer') {
-      alert('Phòng đã có trưởng phòng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
-      return;
+    } else {
+      // For new members that haven't been saved yet, just remove from the list
+      if (window.confirm(`Bạn có chắc chắn muốn xóa ${memberToRemove.fullName} khỏi danh sách thành viên?`)) {
+        setFormData({
+          ...formData,
+          members: formData.members.filter(member => member.id !== memberId)
+        });
+      }
     }
-    
-    // If trying to change to room_leader when there's already a contract_signer  
-    if (hasContractSigner && newRole === 'room_leader') {
-      alert('Phòng đã có người ký hợp đồng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
-      return;
-    }
-    
-    // If there's already a contract_signer and trying to change to contract_signer
-    if (hasContractSigner && newRole === 'contract_signer') {
-      alert('Mỗi phòng chỉ có thể có 1 người ký hợp đồng.');
-      return;
-    }
-    
-    // If there's already a room_leader and trying to change to room_leader
-    if (hasRoomLeader && newRole === 'room_leader') {
-      alert('Mỗi phòng chỉ có thể có 1 trưởng phòng.');
-      return;
-    }
-    
-    // If there's already a contract_signer, don't allow changing to other roles except member
-    if (hasContractSigner && newRole !== 'member' && newRole !== 'contract_signer') {
-      alert('Đã có người ký hợp đồng trong phòng. Tất cả thành viên khác phải là thành viên thường.');
-      return;
-    }
-    
-    setFormData({
-      ...formData,
-      members: formData.members.map(member =>
-        member.id === memberId ? { ...member, role: newRole } : member
-      )
-    });
   };
+
+  // Role management is now handled in tenants table only
+  // Removed updateMemberRole function
 
   // Function to start editing a member
   const startEditMember = (member) => {
@@ -429,52 +584,46 @@ const Contracts = () => {
       phone: member.phone,
       email: member.email || '',
       idNumber: member.idNumber || '',
-      role: member.role
+      idIssueDate: member.idIssueDate || '',
+      idIssuePlace: member.idIssuePlace || '',
+      hometown: member.hometown || '',
+      permanentAddress: member.permanentAddress || ''
+      // role is managed in tenants table, not stored here
     });
   };
 
   // Function to save member changes
   const saveMemberChanges = () => {
-    if (!editMemberData.fullName || !editMemberData.phone) {
-      alert('Vui lòng nhập đầy đủ họ tên và số điện thoại!');
+    // Only validate editable fields
+    if (!editMemberData.phone) {
+      alert('Vui lòng nhập số điện thoại!');
       return;
     }
 
-    // Validate role change (same logic as updateMemberRole)
-    const hasContractSigner = formData.members.some(m => m.role === 'contract_signer' && m.id !== editingMember);
-    const hasRoomLeader = formData.members.some(m => m.role === 'room_leader' && m.id !== editingMember);
-    
-    if (hasRoomLeader && editMemberData.role === 'contract_signer') {
-      alert('Phòng đã có trưởng phòng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
+    // Validate phone number
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(editMemberData.phone)) {
+      alert('Số điện thoại phải có đúng 10 chữ số!');
       return;
     }
     
-    if (hasContractSigner && editMemberData.role === 'room_leader') {
-      alert('Phòng đã có người ký hợp đồng. Một phòng chỉ có thể có người ký hợp đồng HOẶC trưởng phòng, không thể có cả hai.');
+    // Validate email if provided
+    if (editMemberData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(editMemberData.email)) {
+        alert('Email không đúng định dạng!');
       return;
+    }
     }
     
-    if (hasContractSigner && editMemberData.role === 'contract_signer') {
-      alert('Mỗi phòng chỉ có thể có 1 người ký hợp đồng.');
-      return;
-    }
-    
-    if (hasRoomLeader && editMemberData.role === 'room_leader') {
-      alert('Mỗi phòng chỉ có thể có 1 trưởng phòng.');
-      return;
-    }
+    // Skip ID validation since it's not editable
 
-    if (hasContractSigner && editMemberData.role !== 'member' && editMemberData.role !== 'contract_signer') {
-      alert('Đã có người ký hợp đồng trong phòng. Tất cả thành viên khác phải là thành viên thường.');
-      return;
-    }
-
-    // Update member in formData
+    // Update member in formData (only phone and email, not role)
     setFormData(prev => ({
       ...prev,
       members: prev.members.map(member => 
         member.id === editingMember 
-          ? { ...member, ...editMemberData }
+          ? { ...member, phone: editMemberData.phone, email: editMemberData.email }
           : member
       )
     }));
@@ -482,13 +631,11 @@ const Contracts = () => {
     // If this is an existing tenant (has isExistingTenant flag), also update in tenants table
     const member = formData.members.find(m => m.id === editingMember);
     if (member && member.isExistingTenant) {
+      // Only update phone and email
       updateTenant(editingMember, {
-        ...editMemberData,
-        apartmentId: formData.apartmentId,
-        status: 'active'
+        phone: editMemberData.phone,
+        email: editMemberData.email
       });
-      // Also update role assignment
-      assignTenantToApartment(editingMember, formData.apartmentId, editMemberData.role);
     }
 
     // Reset editing state
@@ -498,6 +645,10 @@ const Contracts = () => {
       phone: '',
       email: '',
       idNumber: '',
+      idIssueDate: '',
+      idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+      hometown: '',
+      permanentAddress: '',
       role: 'member'
     });
   };
@@ -510,6 +661,10 @@ const Contracts = () => {
       phone: '',
       email: '',
       idNumber: '',
+      idIssueDate: '',
+      idIssuePlace: 'Cục Cảnh sát Quản lý Hành chính về Trật tự Xã hội',
+      hometown: '',
+      permanentAddress: '',
       role: 'member'
     });
   };
@@ -531,23 +686,48 @@ const Contracts = () => {
     }
   };
 
-  // Get available apartments (empty ones)
-  const availableApartments = data.apartments.filter(apt => {
-    // Check if the apartment has any active contracts
-    const hasActiveContract = data.contracts.some(contract => 
-      contract.apartmentId === apt.id && contract.status === 'active'
-    );
+  // Get available apartments based on selected date range
+  const getAvailableApartments = () => {
+    // If editing, always show the current apartment
+    if (editingContract) {
+      return data.apartments.filter(apt => apt.id === editingContract.apartmentId);
+    }
     
-    // Show apartment if:
-    // 1. It's being edited (for existing contracts)
-    // 2. It's available and has no active contracts (for new contracts)
-    return (editingContract && apt.id === editingContract.apartmentId) || 
-           (!hasActiveContract && apt.status === 'available');
-  });
+    // If no dates selected, show all available apartments
+    if (!formData.startDate || !formData.endDate) {
+      return data.apartments.filter(apt => apt.status === 'available');
+    }
+    
+    // Check for date conflicts with existing contracts
+    return data.apartments.filter(apt => {
+      // Skip if apartment is in maintenance
+      if (apt.status === 'maintenance') return false;
+      
+      // Check if apartment has any conflicting contracts in the selected period
+      const hasConflict = data.contracts.some(contract => {
+        if (contract.apartmentId !== apt.id) return false;
+        if (contract.status === 'inactive') return false; // Skip terminated contracts
+        
+        // Check date overlap
+        const contractStart = new Date(contract.startDate);
+        const contractEnd = new Date(contract.endDate);
+        const newStart = new Date(formData.startDate);
+        const newEnd = new Date(formData.endDate);
+        
+        // Check if dates overlap
+        return !(newEnd < contractStart || newStart > contractEnd);
+      });
+      
+      return !hasConflict;
+    });
+  };
+  
+  const availableApartments = getAvailableApartments();
 
   // Get contract stats
   const contractStats = {
     total: data.contracts.length,
+    pending: data.contracts.filter(c => c.status === 'pending').length,
     active: data.contracts.filter(c => c.status === 'active').length,
     expired: data.contracts.filter(c => c.status === 'expired').length,
     inactive: data.contracts.filter(c => c.status === 'inactive').length,
@@ -582,10 +762,10 @@ const Contracts = () => {
         }}
       >
         <div className="flex items-center justify-center min-h-screen p-4">
-          <div 
+        <div 
             className="bg-primary rounded-xl shadow-xl w-[90%] max-w-4xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="p-6 border-b border-primary flex-shrink-0">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold text-primary">
@@ -610,12 +790,21 @@ const Contracts = () => {
                   <p><span className="font-medium">Số hợp đồng:</span> {viewingContract.contractNumber}</p>
                   <p><span className="font-medium">Trạng thái:</span> 
                     <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      viewingContract.status === 'active' ? 'badge-success' : 'badge-danger'
+                      viewingContract.status === 'active' 
+                        ? 'badge-success' 
+                        : viewingContract.status === 'pending'
+                          ? 'badge-warning'
+                          : viewingContract.status === 'inactive'
+                            ? 'badge-secondary'
+                            : 'badge-danger'
                     }`}>
-                      {viewingContract.status === 'active' ? 'Hiệu lực' : 'Hết hạn'}
+                      {viewingContract.status === 'active' ? 'Hiệu lực' : 
+                       viewingContract.status === 'pending' ? 'Chưa có hiệu lực' :
+                       viewingContract.status === 'inactive' ? 'Đã thanh lý' : 'Hết hạn'}
                     </span>
                   </p>
                   <p><span className="font-medium">Ngày tạo:</span> {formatDate(viewingContract.createdAt)}</p>
+                  {viewingContract.signDate && <p><span className="font-medium">Ngày ký:</span> {formatDate(viewingContract.signDate)}</p>}
                 </div>
               </div>
               
@@ -699,7 +888,7 @@ const Contracts = () => {
               </div>
             )}
           </div>
-        </div>
+          </div>
         </div>
       </div>
     );
@@ -788,75 +977,87 @@ const Contracts = () => {
               Quản lý tất cả hợp đồng thuê nhà trong hệ thống
             </p>
           </div>
-          <button 
-            onClick={() => openModal()}
-            className="btn btn-primary flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Tạo hợp đồng mới</span>
-          </button>
+            <button 
+              onClick={() => openModal()}
+              className="btn btn-primary flex items-center space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Tạo hợp đồng mới</span>
+            </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        <div className="bg-primary rounded-xl shadow border p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="bg-primary rounded-xl shadow border p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary">Tổng hợp đồng</p>
               <p className="text-2xl font-bold text-primary">{contractStats.total}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-sm">
               📄
             </div>
           </div>
         </div>
 
-        <div className="bg-primary rounded-xl shadow border p-6">
+        <div className="bg-primary rounded-xl shadow border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-secondary">Chưa hiệu lực</p>
+              <p className="text-2xl font-bold text-yellow-600">{contractStats.pending}</p>
+            </div>
+            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center text-sm">
+              ⏳
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-primary rounded-xl shadow border p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary">Đang hiệu lực</p>
               <p className="text-2xl font-bold text-success">{contractStats.active}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-sm">
               ✅
             </div>
           </div>
         </div>
 
-        <div className="bg-primary rounded-xl shadow border p-6">
+        <div className="bg-primary rounded-xl shadow border p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary">Sắp hết hạn</p>
               <p className="text-2xl font-bold text-orange-600">{contractStats.expiringSoon}</p>
             </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-sm">
               ⏰
             </div>
           </div>
         </div>
 
-        <div className="bg-primary rounded-xl shadow border p-6">
+        <div className="bg-primary rounded-xl shadow border p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary">Đã hết hạn</p>
               <p className="text-2xl font-bold text-danger">{contractStats.expired}</p>
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-sm">
               ❌
             </div>
           </div>
         </div>
 
-        <div className="bg-primary rounded-xl shadow border p-6">
+        <div className="bg-primary rounded-xl shadow border p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-secondary">Đã thanh lý</p>
               <p className="text-2xl font-bold text-gray-600">{contractStats.inactive}</p>
             </div>
-            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-sm">
               🔒
             </div>
           </div>
@@ -886,6 +1087,7 @@ const Contracts = () => {
             className="input sm:w-auto"
           >
             <option value="all">Tất cả trạng thái</option>
+            <option value="pending">Chưa có hiệu lực</option>
             <option value="active">Đang hiệu lực</option>
             <option value="expired">Hết hạn</option>
             <option value="inactive">Đã thanh lý</option>
@@ -990,11 +1192,14 @@ const Contracts = () => {
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         contract.status === 'active' 
                           ? 'badge-success' 
-                          : contract.status === 'deactive'
+                          : contract.status === 'pending'
+                            ? 'badge-warning'
+                            : contract.status === 'inactive'
                             ? 'badge-secondary'
                             : 'badge-danger'
                       }`}>
                         {contract.status === 'active' ? 'Hiệu lực' : 
+                         contract.status === 'pending' ? 'Chưa có hiệu lực' :
                          contract.status === 'inactive' ? 'Đã thanh lý' : 'Hết hạn'}
                       </span>
                     </td>
@@ -1019,12 +1224,12 @@ const Contracts = () => {
                           >
                             Gia hạn
                           </button>
-                          <button 
-                            onClick={() => handleDeactivate(contract)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            Thanh lý
-                          </button>
+                        <button 
+                          onClick={() => handleDeactivate(contract)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Thanh lý
+                        </button>
                         </>
                       )}
                       {currentUser?.role === 'admin' && (
@@ -1071,10 +1276,10 @@ const Contracts = () => {
           }}
         >
           <div className="flex items-center justify-center min-h-screen p-4">
-            <div 
+          <div 
               className="bg-primary rounded-xl shadow-xl w-[90%] max-w-4xl my-8 overflow-hidden flex flex-col max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-primary flex-shrink-0">
               <h3 className="text-lg font-semibold text-primary">
                 {editingContract ? 'Chỉnh sửa hợp đồng' : 'Tạo hợp đồng mới'}
@@ -1089,24 +1294,37 @@ const Contracts = () => {
                     <div className="text-sm text-yellow-800">
                       <p className="font-medium mb-1">Lưu ý khi sửa hợp đồng:</p>
                       <ul className="list-disc list-inside space-y-1">
-                        <li>Chỉ có thể thêm/xóa thành viên trong phòng</li>
-                        <li>Không thể thay đổi vai trò của thành viên (đã được quy định trong hợp đồng)</li>
-                        <li>Các thông tin khác của hợp đồng không được phép thay đổi</li>
+                        <li>Tất cả thông tin hợp đồng đã ký KHÔNG THỂ thay đổi</li>
+                        <li>CHỈ có thể thêm/xóa thành viên trong phòng</li>
                         <li>Danh sách thành viên sẽ tự động đồng bộ với mục Quản lý khách thuê</li>
                       </ul>
                     </div>
                   </div>
                 </div>
               )}
+              {/* Date selection notice */}
+              {!editingContract && (!formData.startDate || !formData.endDate) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-blue-600">💡</span>
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">Vui lòng chọn thời gian hợp đồng trước</p>
+                      <p>Hệ thống sẽ tự động kiểm tra và hiển thị danh sách phòng trống trong khoảng thời gian bạn chọn.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Contract dates first */}
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Số hợp đồng
+                    Ngày ký hợp đồng <span className="text-danger">*</span>
                   </label>
                   <input
-                    type="text"
-                    value={formData.contractNumber}
-                    onChange={(e) => setFormData({...formData, contractNumber: e.target.value})}
+                    type="date"
+                    value={formData.signDate}
+                    onChange={(e) => setFormData({...formData, signDate: e.target.value})}
                     className="input w-full"
                     required
                     disabled={editingContract ? true : false}
@@ -1115,98 +1333,7 @@ const Contracts = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Căn hộ
-                  </label>
-                  <select
-                    value={formData.apartmentId}
-                    onChange={(e) => handleApartmentChange(e.target.value)}
-                    className="input w-full"
-                    required
-                    disabled={editingContract ? true : false}
-                  >
-                    <option value="">Chọn căn hộ</option>
-                    {availableApartments.map(apt => {
-                      const roomPrice = getRoomPrice(apt.id);
-                      return (
-                        <option key={apt.id} value={apt.id}>
-                          Phòng {apt.roomNumber} - {roomPrice?.toLocaleString('vi-VN')} VNĐ
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Khách thuê
-                  </label>
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Họ và tên"
-                      value={formData.tenantName || ''}
-                      onChange={(e) => setFormData({...formData, tenantName: e.target.value})}
-                      className="input w-full"
-                      required
-                      disabled={editingContract ? true : false}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Số điện thoại"
-                      value={formData.tenantPhone || ''}
-                      onChange={(e) => setFormData({...formData, tenantPhone: e.target.value})}
-                      className="input w-full"
-                      required
-                      disabled={editingContract ? true : false}
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={formData.tenantEmail || ''}
-                      onChange={(e) => setFormData({...formData, tenantEmail: e.target.value})}
-                      className="input w-full"
-                      disabled={editingContract ? true : false}
-                    />
-                    <input
-                      type="text"
-                      placeholder="CCCD/CMND"
-                      value={formData.tenantIdNumber || ''}
-                      onChange={(e) => setFormData({...formData, tenantIdNumber: e.target.value})}
-                      className="input w-full"
-                      disabled={editingContract ? true : false}
-                    />
-                    <select
-                      value={formData.tenantRole || 'room_leader'}
-                      onChange={(e) => setFormData({...formData, tenantRole: e.target.value})}
-                      className="input w-full"
-                      required
-                      disabled={editingContract ? true : false}
-                    >
-                      <option value="room_leader">Trưởng phòng (Ký HĐ + Ở trọ)</option>
-                      <option value="contract_signer">Người ký HĐ (Không ở trọ)</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Trạng thái
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                    className="input w-full"
-                    disabled={editingContract ? true : false}
-                  >
-                    <option value="active">Hiệu lực</option>
-                    <option value="expired">Hết hạn</option>
-                    <option value="inactive">Đã thanh lý</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-2">
-                    Ngày bắt đầu
+                    Ngày bắt đầu <span className="text-danger">*</span>
                   </label>
                   <input
                     type="date"
@@ -1220,7 +1347,7 @@ const Contracts = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Ngày kết thúc
+                    Ngày kết thúc <span className="text-danger">*</span>
                   </label>
                   <input
                     type="date"
@@ -1228,13 +1355,206 @@ const Contracts = () => {
                     onChange={(e) => setFormData({...formData, endDate: e.target.value})}
                     className="input w-full"
                     required
+                    min={formData.startDate || undefined}
                     disabled={editingContract ? true : false}
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Số hợp đồng <span className="text-danger">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.contractNumber}
+                      onChange={(e) => setFormData({...formData, contractNumber: e.target.value})}
+                      className={`input w-full ${editingContract ? 'bg-gray-50' : 'pr-10'}`}
+                      required
+                      disabled={editingContract ? true : false}
+                      placeholder="Ví dụ: HĐ001/HĐTCH-2025"
+                    />
+                    {!editingContract && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, contractNumber: generateContractNumber()})}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800"
+                        title="Tạo số tự động"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {!editingContract && (
+                    <p className="text-xs text-secondary mt-1">
+                      💡 Hệ thống tự động tạo số theo định dạng HĐxxx/HĐTCH-YYYY, bạn có thể thay đổi nếu muốn
+                    </p>
+                  )}
+                  {editingContract && (
+                    <p className="text-xs text-danger mt-1">
+                      ⚠️ Không thể thay đổi số hợp đồng sau khi tạo
+                    </p>
+                  )}
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Tiền thuê hàng tháng (VNĐ)
+                    Căn hộ <span className="text-danger">*</span> {!editingContract && formData.startDate && formData.endDate && availableApartments.length > 0 && (
+                      <span className="text-xs text-success ml-2">
+                        ({availableApartments.length} phòng trống)
+                      </span>
+                    )}
+                  </label>
+                  {!editingContract && (!formData.startDate || !formData.endDate) ? (
+                    <div className="input w-full bg-gray-50 text-gray-500 cursor-not-allowed flex items-center">
+                      <span className="text-sm">Vui lòng chọn ngày bắt đầu và kết thúc trước</span>
+                    </div>
+                  ) : (
+                  <select
+                    value={formData.apartmentId}
+                      onChange={(e) => handleApartmentChange(e.target.value)}
+                    className="input w-full"
+                    required
+                      disabled={editingContract ? true : false}
+                  >
+                    <option value="">Chọn căn hộ</option>
+                      {availableApartments.map(apt => {
+                        const roomPrice = getRoomPrice(apt.id);
+                        return (
+                      <option key={apt.id} value={apt.id}>
+                            Phòng {apt.roomNumber} - {roomPrice?.toLocaleString('vi-VN')} VNĐ
+                      </option>
+                        );
+                      })}
+                  </select>
+                  )}
+                  {!editingContract && formData.startDate && formData.endDate && availableApartments.length === 0 && (
+                    <p className="text-xs text-danger mt-1">
+                      Không có phòng trống trong khoảng thời gian này
+                    </p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Khách thuê <span className="text-danger">*</span>
+                  </label>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Họ và tên *"
+                        value={formData.tenantName || ''}
+                        onChange={(e) => setFormData({...formData, tenantName: e.target.value})}
+                        className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                        required
+                        disabled={editingContract ? true : false}
+                        title={editingContract ? "Không thể thay đổi họ tên trong hợp đồng đã ký" : ""}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Số điện thoại (10 số) *"
+                        value={formData.tenantPhone || ''}
+                        onChange={(e) => setFormData({...formData, tenantPhone: e.target.value})}
+                        className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                        required
+                        maxLength="10"
+                        disabled={editingContract ? true : false}
+                        title={editingContract ? "Không thể thay đổi số điện thoại trong hợp đồng đã ký" : ""}
+                      />
+                    </div>
+                    
+                    <input
+                      type="email"
+                      placeholder="Email (không bắt buộc)"
+                      value={formData.tenantEmail || ''}
+                      onChange={(e) => setFormData({...formData, tenantEmail: e.target.value})}
+                      className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                      disabled={editingContract ? true : false}
+                      title={editingContract ? "Không thể thay đổi email trong hợp đồng đã ký" : ""}
+                    />
+                    
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-secondary mb-2">Thông tin CCCD</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          placeholder="Số CCCD (12 số) *"
+                          value={formData.tenantIdNumber || ''}
+                          onChange={(e) => setFormData({...formData, tenantIdNumber: e.target.value})}
+                          className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                          maxLength="12"
+                          required
+                          disabled={editingContract ? true : false}
+                          title={editingContract ? "Không thể thay đổi số CCCD trong hợp đồng đã ký" : ""}
+                        />
+                        <input
+                          type="date"
+                          placeholder="Ngày cấp *"
+                          value={formData.tenantIdIssueDate || ''}
+                          onChange={(e) => setFormData({...formData, tenantIdIssueDate: e.target.value})}
+                          className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                          required
+                          disabled={editingContract ? true : false}
+                          title={editingContract ? "Không thể thay đổi ngày cấp CCCD trong hợp đồng đã ký" : ""}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Nơi cấp *"
+                        value={formData.tenantIdIssuePlace || ''}
+                        onChange={(e) => setFormData({...formData, tenantIdIssuePlace: e.target.value})}
+                        className={`input w-full mt-3 ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                        required
+                        disabled={editingContract ? true : false}
+                        title={editingContract ? "Không thể thay đổi nơi cấp CCCD trong hợp đồng đã ký" : ""}
+                      />
+                    </div>
+                    
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-secondary mb-2">Địa chỉ</p>
+                      <input
+                        type="text"
+                        placeholder="Quê quán *"
+                        value={formData.tenantHometown || ''}
+                        onChange={(e) => setFormData({...formData, tenantHometown: e.target.value})}
+                        className={`input w-full mb-3 ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                        required
+                        disabled={editingContract ? true : false}
+                        title={editingContract ? "Không thể thay đổi quê quán trong hợp đồng đã ký" : ""}
+                      />
+                      <textarea
+                        placeholder="Nơi thường trú *"
+                        value={formData.tenantPermanentAddress || ''}
+                        onChange={(e) => setFormData({...formData, tenantPermanentAddress: e.target.value})}
+                        className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                        rows="2"
+                        required
+                        disabled={editingContract ? true : false}
+                        title={editingContract ? "Không thể thay đổi nơi thường trú trong hợp đồng đã ký" : ""}
+                      />
+                    </div>
+                    
+                    <select
+                      value={formData.tenantRole || 'room_leader'}
+                      onChange={(e) => setFormData({...formData, tenantRole: e.target.value})}
+                      className={`input w-full ${editingContract ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                      required
+                      disabled={editingContract ? true : false}
+                      title={editingContract ? "Không thể thay đổi vai trò trong hợp đồng đã ký" : ""}
+                    >
+                      <option value="room_leader">Trưởng phòng (Ký HĐ + Ở trọ)</option>
+                      <option value="contract_signer">Người ký HĐ (Không ở trọ)</option>
+                    </select>
+                  </div>
+                </div>
+                
+                
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">
+                    Tiền thuê hàng tháng (VNĐ) <span className="text-danger">*</span>
                   </label>
                   <input
                     type="number"
@@ -1251,7 +1571,7 @@ const Contracts = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Tiền cọc (VNĐ)
+                    Tiền cọc (VNĐ) <span className="text-danger">*</span>
                   </label>
                   <input
                     type="number"
@@ -1320,19 +1640,24 @@ const Contracts = () => {
                               tenant.phone.includes(tenantSearchTerm)
                             )
                             .filter(tenant => 
-                              !formData.members?.some(m => m.tenantId === tenant.id)
+                              !formData.members?.some(m => m.id === tenant.id) // Check by id, not tenantId
                             )
                             .map(tenant => (
                               <div key={tenant.id} className="bg-primary border border-primary rounded p-3 hover:bg-secondary cursor-pointer"
                                 onClick={() => {
                                   const newMemberData = {
-                                    id: Date.now(),
+                                    id: tenant.id, // Use tenant.id as member id for existing tenants
                                     tenantId: tenant.id,
                                     fullName: tenant.fullName,
                                     phone: tenant.phone,
                                     email: tenant.email || '',
                                     idNumber: tenant.idNumber || '',
-                                    role: 'member'
+                                    idIssueDate: tenant.idIssueDate || '',
+                                    idIssuePlace: tenant.idIssuePlace || '',
+                                    hometown: tenant.hometown || '',
+                                    permanentAddress: tenant.permanentAddress || '',
+                                    role: tenant.role || 'member', // Keep existing role
+                                    isExistingTenant: true
                                   };
                                   setFormData({
                                     ...formData,
@@ -1355,7 +1680,7 @@ const Contracts = () => {
                           {data.tenants.filter(tenant => 
                             (tenant.fullName.toLowerCase().includes(tenantSearchTerm.toLowerCase()) ||
                             tenant.phone.includes(tenantSearchTerm)) &&
-                            !formData.members?.some(m => m.tenantId === tenant.id)
+                            !formData.members?.some(m => m.id === tenant.id)
                           ).length === 0 && (
                             <p className="text-center text-secondary text-sm py-3">
                               Không tìm thấy khách hàng phù hợp
@@ -1366,54 +1691,92 @@ const Contracts = () => {
                     </div>
                   ) : (
                     // Add new member form
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <input
                         type="text"
-                        placeholder="Họ và tên"
+                        placeholder="Họ và tên *"
                         value={newMember.fullName}
                         onChange={(e) => setNewMember({...newMember, fullName: e.target.value})}
                         className="input text-sm"
                       />
                       <input
                         type="text"
-                        placeholder="Số điện thoại"
+                        placeholder="Số điện thoại (10 số) *"
                         value={newMember.phone}
                         onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
                         className="input text-sm"
+                        maxLength="10"
                       />
-                      <input
-                        type="email"
-                        placeholder="Email"
-                        value={newMember.email}
-                        onChange={(e) => setNewMember({...newMember, email: e.target.value})}
-                        className="input text-sm"
-                      />
+                    </div>
+                    
+                    <input
+                      type="email"
+                      placeholder="Email (không bắt buộc)"
+                      value={newMember.email}
+                      onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                      className="input text-sm"
+                    />
+                    
+                    <div className="border-t pt-3">
+                      <p className="text-xs font-medium text-secondary mb-2">Thông tin CCCD</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          placeholder="Số CCCD (12 số) *"
+                          value={newMember.idNumber}
+                          onChange={(e) => setNewMember({...newMember, idNumber: e.target.value})}
+                          className="input text-sm"
+                          maxLength="12"
+                        />
+                        <input
+                          type="date"
+                          placeholder="Ngày cấp *"
+                          value={newMember.idIssueDate}
+                          onChange={(e) => setNewMember({...newMember, idIssueDate: e.target.value})}
+                          className="input text-sm"
+                        />
+                      </div>
                       <input
                         type="text"
-                        placeholder="CCCD/CMND"
-                        value={newMember.idNumber}
-                        onChange={(e) => setNewMember({...newMember, idNumber: e.target.value})}
-                        className="input text-sm"
+                        placeholder="Nơi cấp *"
+                        value={newMember.idIssuePlace}
+                        onChange={(e) => setNewMember({...newMember, idIssuePlace: e.target.value})}
+                        className="input text-sm mt-3"
                       />
-                      <select
-                        value={newMember.role}
-                        onChange={(e) => setNewMember({...newMember, role: e.target.value})}
+                    </div>
+                    
+                    <div className="border-t pt-3">
+                      <p className="text-xs font-medium text-secondary mb-2">Địa chỉ</p>
+                      <input
+                        type="text"
+                        placeholder="Quê quán *"
+                        value={newMember.hometown}
+                        onChange={(e) => setNewMember({...newMember, hometown: e.target.value})}
+                        className="input text-sm mb-3"
+                      />
+                      <textarea
+                        placeholder="Nơi thường trú *"
+                        value={newMember.permanentAddress}
+                        onChange={(e) => setNewMember({...newMember, permanentAddress: e.target.value})}
                         className="input text-sm"
-                        disabled={editingContract ? true : false}
-                      >
-                        <option value="member">Thành viên</option>
-                        <option value="room_leader">Trưởng phòng</option>
-                        <option value="contract_signer">Người ký HĐ</option>
-                      </select>
+                        rows="2"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="input text-sm bg-gray-50 cursor-not-allowed">
+                        Vai trò: Thành viên
+                      </div>
                       <button
                         type="button"
                         onClick={addMember}
                         className="btn btn-primary text-sm"
-                        disabled={!newMember.fullName || !newMember.phone}
                       >
-                        Thêm
+                        Thêm thành viên
                       </button>
                     </div>
+                  </div>
                   )}
                 </div>
 
@@ -1426,15 +1789,21 @@ const Contracts = () => {
                         {editingMember === member.id ? (
                           // Edit mode
                           <div className="space-y-3">
+                            <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-2">
+                              <p className="text-xs text-yellow-700">
+                                ⚠️ Chỉ có thể sửa: Số điện thoại và Email
+                              </p>
+                            </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div>
                                 <label className="block text-xs font-medium text-secondary mb-1">Họ và tên *</label>
                                 <input
                                   type="text"
                                   value={editMemberData.fullName}
-                                  onChange={(e) => setEditMemberData({...editMemberData, fullName: e.target.value})}
-                                  className="input text-sm"
-                                  placeholder="Nhập họ và tên"
+                                  className="input text-sm bg-gray-50 cursor-not-allowed"
+                                  placeholder="Nhập họ và tên (bắt buộc)"
+                                  disabled={true}
+                                  title="Không thể thay đổi họ tên"
                                 />
                               </div>
                               <div>
@@ -1444,7 +1813,8 @@ const Contracts = () => {
                                   value={editMemberData.phone}
                                   onChange={(e) => setEditMemberData({...editMemberData, phone: e.target.value})}
                                   className="input text-sm"
-                                  placeholder="0901234567"
+                                  placeholder="10 số (bắt buộc)"
+                                  maxLength="10"
                                 />
                               </div>
                               <div>
@@ -1458,28 +1828,34 @@ const Contracts = () => {
                                 />
                               </div>
                               <div>
-                                <label className="block text-xs font-medium text-secondary mb-1">CCCD/CMND</label>
+                                <label className="block text-xs font-medium text-secondary mb-1">CCCD</label>
                                 <input
                                   type="text"
                                   value={editMemberData.idNumber}
-                                  onChange={(e) => setEditMemberData({...editMemberData, idNumber: e.target.value})}
-                                  className="input text-sm"
-                                  placeholder="123456789"
+                                  className="input text-sm bg-gray-50 cursor-not-allowed"
+                                  placeholder="12 số"
+                                  maxLength="12"
+                                  disabled={true}
+                                  title="Không thể thay đổi số CCCD"
                                 />
                               </div>
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-secondary mb-1">Vai trò</label>
-                              <select
-                                value={editMemberData.role}
-                                onChange={(e) => setEditMemberData({...editMemberData, role: e.target.value})}
-                                className="input text-sm"
-                                disabled={editingContract ? true : false}
-                              >
-                                <option value="member">Thành viên</option>
-                                <option value="room_leader">Trưởng phòng</option>
-                                <option value="contract_signer">Người ký HĐ</option>
-                              </select>
+                              <div className="input text-sm bg-gray-50 cursor-not-allowed" title="Không thể thay đổi vai trò">
+                                {(() => {
+                                  // Get role from tenants table for consistency
+                                  const tenant = data.tenants.find(t => t.id === editingMember);
+                                  const role = tenant?.role || 'member';
+                                  return (
+                                    <>
+                                      {role === 'contract_signer' && 'Người ký HĐ (Không ở trọ)'}
+                                      {role === 'room_leader' && 'Trưởng phòng (Ký HĐ + Ở trọ)'}
+                                      {role === 'member' && 'Thành viên (Ở trọ)'}
+                                    </>
+                                  );
+                                })()}
+                              </div>
                             </div>
                             <div className="flex space-x-2">
                               <button
@@ -1511,20 +1887,19 @@ const Contracts = () => {
                                   )}
                                 </div>
                                 <div className="text-center">
-                                  <select
-                                    value={member.role}
-                                    onChange={(e) => updateMemberRole(member.id, e.target.value)}
-                                    className="input text-xs px-2 py-1"
-                                    disabled={editingContract ? true : false}
-                                  >
-                                    <option value="member">Thành viên</option>
-                                    <option value="room_leader">Trưởng phòng</option>
-                                    <option value="contract_signer">Người ký HĐ</option>
-                                  </select>
-                                  <div className="text-xs text-secondary mt-1">
-                                    {member.role === 'contract_signer' && '📝 Ký HĐ (Không ở trọ)'}
-                                    {member.role === 'room_leader' && '👑 Trưởng phòng (Ký HĐ + Ở trọ)'}
-                                    {member.role === 'member' && '👤 Thành viên (Ở trọ)'}
+                                  <div className="text-xs px-2 py-1">
+                                    {(() => {
+                                      // Get role from tenants table for consistency
+                                      const tenant = data.tenants.find(t => t.id === member.id);
+                                      const role = tenant?.role || 'member';
+                                      return (
+                                        <>
+                                          {role === 'contract_signer' && '📝 Ký HĐ (Không ở trọ)'}
+                                          {role === 'room_leader' && '👑 Trưởng phòng (Ký HĐ + Ở trọ)'}
+                                          {role === 'member' && '👤 Thành viên (Ở trọ)'}
+                                        </>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               </div>
@@ -1565,7 +1940,7 @@ const Contracts = () => {
                 )}
               </div>
             </form>
-            
+              
             <div className="p-6 border-t border-primary flex-shrink-0">
               <div className="flex justify-end space-x-3">
                 <button

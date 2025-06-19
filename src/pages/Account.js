@@ -1,23 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
+import Modal from '../components/Modal';
 
 const Account = () => {
   const { t, language, changeLanguage } = useLanguage();
-  const { user, logout } = useAuth();
   const { theme, changeTheme } = useTheme();
-  const { data } = useApp();
+  const { data, updateUser, currentUser, logout } = useApp();
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [profileData, setProfileData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    phone: '',
-    address: '',
-    avatar: ''
+    fullName: currentUser?.fullName || '',
+    email: currentUser?.email || '',
+    phone: currentUser?.phone || '',
+    address: currentUser?.address || ''
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -32,26 +31,74 @@ const Account = () => {
     maintenanceAlerts: true
   });
 
+  // Update profileData when currentUser changes
+  useEffect(() => {
+    setProfileData({
+      fullName: currentUser?.fullName || '',
+      email: currentUser?.email || '',
+      phone: currentUser?.phone || '',
+      address: currentUser?.address || ''
+    });
+  }, [currentUser]);
+
   const handleProfileSave = () => {
-    // In a real app, this would update the user in the backend
-    console.log('Saving profile:', profileData);
+    // Validation
+    if (!profileData.fullName) {
+      alert('Vui lòng nhập họ tên!');
+      return;
+    }
+    
+    if (profileData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(profileData.email)) {
+        alert('Email không đúng định dạng!');
+        return;
+      }
+    }
+    
+    if (profileData.phone) {
+      const phoneRegex = /^[0-9]{10}$/;
+      if (!phoneRegex.test(profileData.phone)) {
+        alert('Số điện thoại phải có đúng 10 chữ số!');
+        return;
+      }
+    }
+    
+    // Update user data in AppContext
+    updateUser(currentUser.id, profileData);
+    
     setIsEditing(false);
-    // Show success message
     alert('Thông tin đã được cập nhật thành công!');
   };
 
   const handlePasswordChange = (e) => {
     e.preventDefault();
+    
+    if (!passwordData.currentPassword) {
+      alert('Vui lòng nhập mật khẩu hiện tại!');
+      return;
+    }
+    
+    // Verify current password
+    const currentUserData = data.users.find(u => u.id === currentUser.id);
+    if (currentUserData.password !== passwordData.currentPassword) {
+      alert('Mật khẩu hiện tại không đúng!');
+      return;
+    }
+    
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       alert('Mật khẩu xác nhận không khớp!');
       return;
     }
+    
     if (passwordData.newPassword.length < 6) {
       alert('Mật khẩu mới phải có ít nhất 6 ký tự!');
       return;
     }
-    // In a real app, this would verify current password and update
-    console.log('Changing password');
+    
+    // Update password
+    updateUser(currentUser.id, { password: passwordData.newPassword });
+    
     setPasswordData({
       currentPassword: '',
       newPassword: '',
@@ -68,11 +115,11 @@ const Account = () => {
 
   // Get user-specific data
   const getUserData = () => {
-    if (user?.role === 'user' && user?.tenantId) {
-      const tenant = data.tenants.find(t => t.id === user.tenantId);
+    if (currentUser?.role === 'user' && currentUser?.tenantId) {
+      const tenant = data.tenants.find(t => t.id === currentUser.tenantId);
       const apartment = tenant ? data.apartments.find(apt => apt.id === tenant.apartmentId) : null;
-      const contracts = data.contracts.filter(c => c.tenantId === user.tenantId);
-      const invoices = data.invoices.filter(i => i.tenantId === user.tenantId);
+      const contracts = data.contracts.filter(c => c.tenantId === currentUser.tenantId);
+      const invoices = data.invoices.filter(i => i.tenantId === currentUser.tenantId);
       
       return { tenant, apartment, contracts, invoices };
     }
@@ -86,7 +133,7 @@ const Account = () => {
     { id: 'security', label: 'Bảo mật', icon: '🔒' },
     { id: 'notifications', label: 'Thông báo', icon: '🔔' },
     { id: 'preferences', label: 'Cài đặt', icon: '⚙️' },
-    ...(user?.role === 'user' ? [{ id: 'tenant-info', label: 'Thông tin thuê', icon: '🏠' }] : [])
+    ...(currentUser?.role === 'user' ? [{ id: 'tenant-info', label: 'Thông tin thuê', icon: '🏠' }] : [])
   ];
 
   return (
@@ -95,7 +142,7 @@ const Account = () => {
       <div className="bg-primary rounded-xl shadow border p-6">
         <div className="flex items-center space-x-4">
           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            {currentUser?.fullName?.charAt(0)?.toUpperCase() || 'U'}
           </div>
           <div>
             <h1 className="text-3xl font-bold text-primary mb-1">
@@ -106,14 +153,14 @@ const Account = () => {
             </p>
             <div className="flex items-center space-x-4 mt-2">
               <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                user?.role === 'admin' ? 'badge-purple' :
-                user?.role === 'manager' ? 'badge-primary' : 'badge-success'
+                currentUser?.role === 'admin' ? 'badge-purple' :
+                currentUser?.role === 'manager' ? 'badge-primary' : 'badge-success'
               }`}>
-                {user?.role === 'admin' ? '👑 Quản trị viên' :
-                 user?.role === 'manager' ? '👨‍💼 Quản lý' : '👤 Khách thuê'}
+                {currentUser?.role === 'admin' ? '👑 Quản trị viên' :
+                 currentUser?.role === 'manager' ? '👨‍💼 Quản lý' : '👤 Khách thuê'}
               </span>
               <span className="text-sm text-secondary">
-                Đăng nhập: {user?.username}
+                Đăng nhập: {currentUser?.username}
               </span>
             </div>
           </div>
@@ -148,7 +195,18 @@ const Account = () => {
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-primary">Thông tin cá nhân</h3>
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
+                  onClick={() => {
+                    if (isEditing) {
+                      // Reset form data when canceling
+                      setProfileData({
+                        fullName: currentUser?.fullName || '',
+                        email: currentUser?.email || '',
+                        phone: currentUser?.phone || '',
+                        address: currentUser?.address || ''
+                      });
+                    }
+                    setIsEditing(!isEditing);
+                  }}
                   className="btn btn-primary"
                 >
                   {isEditing ? 'Hủy' : 'Chỉnh sửa'}
@@ -163,12 +221,13 @@ const Account = () => {
                   {isEditing ? (
                     <input
                       type="text"
-                      value={profileData.name}
-                      onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                      value={profileData.fullName}
+                      onChange={(e) => setProfileData({...profileData, fullName: e.target.value})}
                       className="input w-full"
+                      required
                     />
                   ) : (
-                    <p className="text-primary font-medium">{user?.name}</p>
+                    <p className="text-primary font-medium">{currentUser?.fullName}</p>
                   )}
                 </div>
 
@@ -184,7 +243,7 @@ const Account = () => {
                       className="input w-full"
                     />
                   ) : (
-                    <p className="text-primary font-medium">{user?.email}</p>
+                    <p className="text-primary font-medium">{currentUser?.email || 'Chưa cập nhật'}</p>
                   )}
                 </div>
 
@@ -201,7 +260,7 @@ const Account = () => {
                       placeholder="Nhập số điện thoại"
                     />
                   ) : (
-                    <p className="text-primary font-medium">{profileData.phone || 'Chưa cập nhật'}</p>
+                    <p className="text-primary font-medium">{currentUser?.phone || 'Chưa cập nhật'}</p>
                   )}
                 </div>
 
@@ -210,8 +269,8 @@ const Account = () => {
                     Vai trò
                   </label>
                   <p className="text-primary font-medium">
-                    {user?.role === 'admin' ? 'Quản trị viên' :
-                     user?.role === 'manager' ? 'Quản lý' : 'Khách thuê'}
+                    {currentUser?.role === 'admin' ? 'Quản trị viên' :
+                     currentUser?.role === 'manager' ? 'Quản lý' : 'Khách thuê'}
                   </p>
                 </div>
 
@@ -227,7 +286,7 @@ const Account = () => {
                       placeholder="Nhập địa chỉ"
                     />
                   ) : (
-                    <p className="text-primary font-medium">{profileData.address || 'Chưa cập nhật'}</p>
+                    <p className="text-primary font-medium">{currentUser?.address || 'Chưa cập nhật'}</p>
                   )}
                 </div>
               </div>
@@ -235,7 +294,16 @@ const Account = () => {
               {isEditing && (
                 <div className="flex justify-end space-x-3 pt-4 border-t border-primary">
                   <button
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      // Reset form data when canceling
+                      setProfileData({
+                        fullName: currentUser?.fullName || '',
+                        email: currentUser?.email || '',
+                        phone: currentUser?.phone || '',
+                        address: currentUser?.address || ''
+                      });
+                      setIsEditing(false);
+                    }}
                     className="btn btn-secondary"
                   >
                     Hủy
@@ -259,23 +327,41 @@ const Account = () => {
               <form onSubmit={handlePasswordChange} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Mật khẩu hiện tại
+                    Mật khẩu hiện tại *
                   </label>
-                  <input
-                    type="password"
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                    className="input w-full max-w-md"
-                    required
-                  />
+                  <div className="relative max-w-md">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={passwordData.currentPassword}
+                      onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                      className="input w-full pr-10"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Mật khẩu mới
+                    Mật khẩu mới *
                   </label>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                     className="input w-full max-w-md"
@@ -287,10 +373,10 @@ const Account = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
-                    Xác nhận mật khẩu mới
+                    Xác nhận mật khẩu mới *
                   </label>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                     className="input w-full max-w-md"
@@ -481,12 +567,36 @@ const Account = () => {
                     </button>
                   </div>
                 </div>
+                
+                {/* Admin Tools - Only for admin */}
+                {currentUser?.role === 'admin' && (
+                  <div className="p-4 bg-red-50 rounded-lg mt-4">
+                    <h4 className="font-medium text-red-800 mb-3">Công cụ quản trị</h4>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Bạn có chắc chắn muốn reset toàn bộ dữ liệu về mặc định?\n\nLưu ý: Tất cả dữ liệu hiện tại sẽ bị xóa!')) {
+                            localStorage.removeItem('apartmentData');
+                            localStorage.removeItem('currentUser');
+                            window.location.reload();
+                          }
+                        }}
+                        className="btn btn-danger w-full"
+                      >
+                        🔄 Reset dữ liệu về mặc định
+                      </button>
+                      <p className="text-xs text-red-600 text-center">
+                        Sử dụng cẩn thận! Hành động này không thể hoàn tác.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {/* Tenant Info Tab - Only for users */}
-          {activeTab === 'tenant-info' && user?.role === 'user' && (
+          {activeTab === 'tenant-info' && currentUser?.role === 'user' && (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-primary">Thông tin thuê trọ</h3>
               

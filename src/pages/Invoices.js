@@ -5,7 +5,7 @@ import { formatDate, formatMonthYear } from '../utils/dateFormat';
 
 const Invoices = () => {
   const { t } = useLanguage();
-  const { data, updateInvoice, addInvoice, deleteInvoice } = useApp();
+  const { data, currentUser, updateInvoice, addInvoice, deleteInvoice } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,7 +141,12 @@ const Invoices = () => {
   };
 
   const handleDelete = (invoice) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa hóa đơn này?')) {
+    if (currentUser?.role !== 'admin') {
+      alert('Chỉ admin mới có quyền xóa hóa đơn.');
+      return;
+    }
+    
+    if (window.confirm('Bạn có chắc chắn muốn XÓA VĨNH VIỄN hóa đơn này? Hành động này không thể hoàn tác.')) {
       deleteInvoice(invoice.id);
     }
   };
@@ -463,12 +468,14 @@ const Invoices = () => {
                           ✅ Đã thanh toán
                         </button>
                       )}
-                      <button 
-                        onClick={() => handleDelete(invoice)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Xóa
-                      </button>
+                      {currentUser?.role === 'admin' && (
+                        <button 
+                          onClick={() => handleDelete(invoice)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Xóa
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

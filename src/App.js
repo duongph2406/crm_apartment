@@ -2,8 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { AppProvider } from './contexts/AppContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AppProvider, useApp } from './contexts/AppContext';
 import Header from './components/Header';
 import Login from './components/Login';
 import Home from './pages/Home';
@@ -20,13 +19,13 @@ import CostManagement from './pages/CostManagement';
 import InvoiceGeneration from './pages/InvoiceGeneration';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { user } = useAuth();
+  const { currentUser } = useApp();
   
-  if (!user) {
+  if (!currentUser) {
     return <Login />;
   }
   
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+  if (allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {
     return <Navigate to="/" replace />;
   }
   
@@ -34,9 +33,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 };
 
 const AppContent = () => {
-  const { user } = useAuth();
+  const { currentUser } = useApp();
 
-  if (!user) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen bg-secondary flex items-center justify-center">
         <Login />
@@ -49,7 +48,7 @@ const AppContent = () => {
       <Header />
       <main className="container mx-auto px-4 py-8 animate-fade-in">
         <Routes>
-          {user.role === 'user' ? (
+          {currentUser.role === 'user' ? (
             <>
               <Route path="/" element={<UserDashboard />} />
               <Route path="/my-contracts" element={<MyContracts />} />
@@ -71,7 +70,7 @@ const AppContent = () => {
               } />
               <Route path="/cost-management" element={<CostManagement />} />
               <Route path="/account" element={<Account />} />
-              {(user.role === 'admin' || user.role === 'manager') && (
+              {(currentUser.role === 'admin' || currentUser.role === 'manager') && (
                 <Route path="/users" element={<Users />} />
               )}
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -87,13 +86,11 @@ function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <AuthProvider>
-          <AppProvider>
-            <Router>
-              <AppContent />
-            </Router>
-          </AppProvider>
-        </AuthProvider>
+        <AppProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </AppProvider>
       </LanguageProvider>
     </ThemeProvider>
   );
