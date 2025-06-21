@@ -3,8 +3,11 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 import Modal from '../components/Modal';
 import { formatDate } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
 
 const Tenants = () => {
+  usePageTitle('Quản lý khách thuê');
+  
   const { t } = useLanguage();
   const { 
     data, 

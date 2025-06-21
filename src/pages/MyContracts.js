@@ -2,8 +2,11 @@ import React from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
 
 const MyContracts = () => {
+  usePageTitle('Hợp đồng của tôi');
+
   const { data, currentUser } = useApp();
 
   // Get tenant information and contracts for the current user

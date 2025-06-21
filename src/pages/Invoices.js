@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { formatDate, formatMonthYear } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
 import Modal from '../components/Modal';
+import QRCodePayment from '../components/QRCodePayment';
 
 const Invoices = () => {
+  usePageTitle('Quản lý hóa đơn');
+
   const { data, currentUser, updateInvoice, addInvoice, deleteInvoice } = useApp();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
@@ -1016,6 +1020,38 @@ const Invoices = () => {
                             )}
                           </div>
                         </div>
+                        
+                        {/* QR Code Payment */}
+                        {data.bankInfo && data.bankInfo.qrEnabled && data.bankInfo.accountNumber && 
+                         (viewingInvoice.status === 'pending' || viewingInvoice.status === 'overdue') && (
+                          <div>
+                            <QRCodePayment
+                              bankInfo={data.bankInfo}
+                              amount={Number(viewingInvoice.total) || 0}
+                              description={`Thanh toan hoa don ${viewingInvoice.invoiceNumber} phong ${apartment?.roomNumber} thang ${viewingInvoice.month}/${viewingInvoice.year}`}
+                              invoiceNumber={viewingInvoice.invoiceNumber}
+                              size={180}
+                              className="mt-4"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Fallback message if QR not showing */}
+                        {(!data.bankInfo || !data.bankInfo.qrEnabled || !data.bankInfo.accountNumber) && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div className="flex items-center">
+                              <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <div>
+                                <p className="text-sm font-medium text-yellow-800">QR code chưa được cài đặt</p>
+                                <p className="text-xs text-yellow-700 mt-1">
+                                  Vào <strong>Quản lý Chi phí → Tài khoản nhận tiền</strong> để cài đặt thông tin ngân hàng
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   );

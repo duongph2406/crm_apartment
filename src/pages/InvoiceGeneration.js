@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import { formatDate } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
+import Modal from '../components/Modal';
+import QRCodePayment from '../components/QRCodePayment';
 
 const InvoiceGeneration = () => {
+  usePageTitle('Tạo hóa đơn');
+  
   const { 
     data, 
     addInvoice,
@@ -925,6 +932,22 @@ const InvoiceGeneration = () => {
                         </div>
                       )}
                     </div>
+                    
+                    {/* QR Code Payment Preview */}
+                    {data.bankInfo && data.bankInfo.qrEnabled && data.bankInfo.accountNumber && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="text-center">
+                          <QRCodePayment
+                            bankInfo={data.bankInfo}
+                            amount={invoice.total}
+                            description={`Thanh toan hoa don phong ${invoice.roomNumber} thang ${selectedMonth}/${selectedYear}`}
+                            invoiceNumber={`HD-${invoice.roomNumber}-${selectedMonth}${selectedYear}`}
+                            size={120}
+                            className="inline-block"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -223,6 +223,14 @@ const initialData = {
     // Giá phòng riêng cho từng phòng
     // Nếu không set riêng thì dùng giá mặc định từ apartment
   },
+  bankInfo: {
+    bankName: 'Ngân hàng Vietcombank',
+    bankCode: 'VCB',
+    accountNumber: '0123456789',
+    accountName: 'NGUYEN VAN A',
+    qrEnabled: true,
+    lastUpdated: new Date().toISOString()
+  },
   users: [
     {
       id: '1',
@@ -881,6 +889,14 @@ export const AppProvider = ({ children }) => {
     return data.roomPrices[apartmentId] || data.apartments.find(apt => apt.id === apartmentId)?.rent || 0;
   };
 
+  // Bank info functions
+  const updateBankInfo = (bankInfo) => {
+    setData(prev => ({
+      ...prev,
+      bankInfo: bankInfo
+    }));
+  };
+
   const value = {
     data,
     currentUser,
@@ -908,6 +924,7 @@ export const AppProvider = ({ children }) => {
     updateCostSettings,
     updateRoomPrice,
     getRoomPrice,
+    updateBankInfo,
     checkExpiredContracts,
     forceSyncContractStatus,
   };

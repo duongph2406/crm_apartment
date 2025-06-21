@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
 
 const Home = () => {
+  usePageTitle('Trang chủ');
+  
   const { 
     currentUser, 
     data,

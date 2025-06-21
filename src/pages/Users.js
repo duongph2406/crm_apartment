@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
 import Modal from '../components/Modal';
 
 const Users = () => {
+  usePageTitle('Quản lý tài khoản');
+  
   const { data, currentUser, addUser, updateUser, deleteUser } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');

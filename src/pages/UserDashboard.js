@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
+import { usePageTitle } from '../hooks';
 
 const UserDashboard = () => {
+  usePageTitle('Bảng điều khiển');
+
   const { currentUser, data } = useApp();
 
   // Get tenant information for the current user

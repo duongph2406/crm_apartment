@@ -6,7 +6,7 @@ import { useApp } from '../contexts/AppContext';
 
 const Header = () => {
   const { t } = useLanguage();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, changeTheme } = useTheme();
   const { currentUser, logout } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,11 +57,11 @@ const Header = () => {
   // Cycle through theme modes with single button
   const cycleTheme = () => {
     if (theme === 'light') {
-      toggleTheme('dark');
+      changeTheme('dark');
     } else if (theme === 'dark') {
-      toggleTheme('system');
+      changeTheme('system');
     } else {
-      toggleTheme('light');
+      changeTheme('light');
     }
   };
 

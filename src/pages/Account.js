@@ -4,8 +4,11 @@ import { useApp } from '../contexts/AppContext';
 import { formatDate } from '../utils/dateFormat';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { usePageTitle } from '../hooks';
 
 const Account = () => {
+  usePageTitle('Tài khoản cá nhân');
+
   const { theme, changeTheme } = useTheme();
   const { data, updateUser, currentUser, logout } = useApp();
   const [activeTab, setActiveTab] = useState('profile');

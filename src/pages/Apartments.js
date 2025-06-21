@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useApp } from '../contexts/AppContext';
+import { usePageTitle } from '../hooks';
 import Modal from '../components/Modal';
 
 
 
 const Apartments = () => {
+  usePageTitle('Quản lý căn hộ');
+  
   const { t } = useLanguage();
   const { 
     data, 
@@ -122,14 +125,6 @@ const Apartments = () => {
     });
     setIsEditModalOpen(true);
   };
-
-  // Update selected apartment when data changes
-  if (selectedApartment) {
-    const updatedApartment = data.apartments.find(apt => apt.id === selectedApartment.id);
-    if (updatedApartment) {
-      setSelectedApartment(updatedApartment);
-    }
-  }
 
   const openApartmentDetail = (apartment) => {
     setSelectedApartment(apartment);
